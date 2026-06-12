@@ -69,6 +69,87 @@ const HIST_E = {
   "2026-3":{rev_operacional:432550,rev_genn:1366.45,impostos:0,cogs_materials:23328,cogs_genn:1200,cogs_subs:27918,cogs_fuel:2615,mkt:16229,sal_ops:0,sal_adm:17695,custos_fixos:17165,softwares:682,contabilidade:5069,desp_gerais:16677,taxas_bank:0},
 };
 
+
+// ─── HISTORICAL RECEIVABLES ───────────────────────────────────────────────────
+const HIST_RECEIVABLES = [
+  {id:"hist_1000",client:"Pourya Hoseini",job:"",total:10000,deposited:0,remaining:10000,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1001",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1002",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1003",client:"Freda",job:"",total:600,deposited:0,remaining:600,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1004",client:"Freda",job:"",total:600,deposited:0,remaining:600,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1005",client:"Freda",job:"",total:600,deposited:0,remaining:600,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1006",client:"Peter Pilla",job:"",total:10000,deposited:10000,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:true,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1007",client:"Revival Development",job:"",total:7600,deposited:7600,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1008",client:"Revival Development",job:"",total:7600,deposited:0,remaining:7600,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1009",client:"Revival Development",job:"",total:3900,deposited:0,remaining:3900,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1010",client:"Carlo Digiantommaso",job:"",total:10000,deposited:0,remaining:10000,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1011",client:"Tommy",job:"",total:6760,deposited:6760,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1012",client:"Tommy",job:"",total:6760,deposited:6760,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1013",client:"Tommy",job:"",total:8000,deposited:8000,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1014",client:"Tommy",job:"",total:1203,deposited:0,remaining:1203,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1015",client:"Franck Garofalo",job:"",total:4000,deposited:4000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1016",client:"Franck Garofalo",job:"",total:17600,deposited:0,remaining:17600,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1017",client:"Franck Garofalo",job:"",total:6000,deposited:0,remaining:6000,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1018",client:"Scott Peterson",job:"",total:18625,deposited:0,remaining:18625,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1019",client:"Michael St Louis",job:"",total:12000,deposited:12000,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:true,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1020",client:"Michael St Louis",job:"",total:900,deposited:0,remaining:900,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1021",client:"Michael St Louis",job:"",total:10000,deposited:0,remaining:10000,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:true,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1022",client:"Christine Ryan",job:"",total:12470,deposited:12470,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1023",client:"Nathan",job:"",total:495,deposited:495,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1024",client:"Andrea Madrona",job:"",total:25000,deposited:0,remaining:25000,billedDate:"2026-09-01",dueDate:"2026-09-15",massSave:false,status:"pending",notes:"",createdAt:"2026-09-01T00:00:00.000Z"},
+  {id:"hist_1025",client:"Andrea Madrona",job:"",total:14500,deposited:0,remaining:14500,billedDate:"2026-10-01",dueDate:"2026-10-15",massSave:false,status:"pending",notes:"",createdAt:"2026-10-01T00:00:00.000Z"},
+  {id:"hist_1026",client:"Andrea Madrona",job:"",total:8500,deposited:0,remaining:8500,billedDate:"2026-11-01",dueDate:"2026-11-15",massSave:false,status:"pending",notes:"",createdAt:"2026-11-01T00:00:00.000Z"},
+  {id:"hist_1027",client:"Robinson",job:"",total:7900,deposited:7900,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1028",client:"Adam Volin",job:"",total:4782,deposited:4782,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1029",client:"Scott Gould",job:"",total:2151,deposited:2151,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1030",client:"Scott Gould",job:"",total:4945,deposited:0,remaining:4945,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1031",client:"Flawless Construction",job:"",total:2800,deposited:0,remaining:2800,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1032",client:"Lowell Dsouza",job:"",total:9000,deposited:9000,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1033",client:"Lowell Dsouza",job:"",total:4000,deposited:4000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1034",client:"Lowell Dsouza",job:"",total:500,deposited:0,remaining:500,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1035",client:"Kurtis",job:"",total:2020,deposited:2020,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1036",client:"Angel Soto",job:"",total:10000,deposited:10000,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1037",client:"Eric Robichaud",job:"",total:7875,deposited:7875,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1038",client:"Eric Robichaud",job:"",total:2000,deposited:0,remaining:2000,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1039",client:"Michelle Trahn",job:"",total:9590,deposited:9590,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1040",client:"Michelle Trahn",job:"",total:8839,deposited:8839,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1041",client:"Ezequias",job:"",total:13282,deposited:13282,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1042",client:"Ezequias",job:"",total:13282,deposited:0,remaining:13282,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1043",client:"Sabrina Ibarra",job:"",total:11874,deposited:11874,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1044",client:"Sabrina Ibarra",job:"",total:12108,deposited:12108,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1045",client:"Sabrina Ibarra",job:"",total:3485,deposited:0,remaining:3485,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1046",client:"Shoulin",job:"",total:25000,deposited:25000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1047",client:"Shoulin",job:"",total:3715,deposited:0,remaining:3715,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1048",client:"Sidone",job:"",total:3500,deposited:3500,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1049",client:"Sidone",job:"",total:3000,deposited:0,remaining:3000,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1050",client:"Andrew Frank",job:"",total:7512,deposited:7512,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1051",client:"Andrew Frank",job:"",total:7512,deposited:0,remaining:7512,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1052",client:"Eka",job:"",total:25000,deposited:25000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1053",client:"Eka",job:"",total:8500,deposited:0,remaining:8500,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1054",client:"Cleber",job:"",total:4333,deposited:4333,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1055",client:"Cleber",job:"",total:8667,deposited:0,remaining:8667,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1056",client:"Andy",job:"",total:21200,deposited:21200,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1057",client:"Andy",job:"",total:21200,deposited:0,remaining:21200,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1058",client:"Andy",job:"",total:7600,deposited:0,remaining:7600,billedDate:"2026-07-01",dueDate:"2026-07-15",massSave:false,status:"pending",notes:"",createdAt:"2026-07-01T00:00:00.000Z"},
+  {id:"hist_1059",client:"Willscott",job:"",total:8248,deposited:8248,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1060",client:"Willscott",job:"",total:8248,deposited:0,remaining:8248,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1061",client:"Brian Casey",job:"",total:17860,deposited:0,remaining:17860,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1062",client:"Jasmine Shovlin",job:"",total:16505,deposited:0,remaining:16505,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1063",client:"Ann-Marie",job:"",total:15406,deposited:0,remaining:15406,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1064",client:"Joe Roberts",job:"",total:29500,deposited:0,remaining:29500,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:true,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1065",client:"Marguerite Guillaume",job:"",total:20828,deposited:0,remaining:20828,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:true,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1066",client:"Samuel Kang",job:"",total:6975,deposited:6975,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1067",client:"Samuel Kang",job:"",total:6975,deposited:0,remaining:6975,billedDate:"2026-07-01",dueDate:"2026-07-15",massSave:false,status:"pending",notes:"",createdAt:"2026-07-01T00:00:00.000Z"},
+  {id:"hist_1068",client:"Gary Smith",job:"",total:1693,deposited:1693,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1069",client:"Gary Smith",job:"",total:1693,deposited:0,remaining:1693,billedDate:"2026-07-01",dueDate:"2026-07-15",massSave:false,status:"pending",notes:"",createdAt:"2026-07-01T00:00:00.000Z"},
+  {id:"hist_1070",client:"Amit Rai",job:"",total:4210,deposited:4210,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:true,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1071",client:"Amit Rai",job:"",total:4202,deposited:0,remaining:4202,billedDate:"2026-07-01",dueDate:"2026-07-15",massSave:true,status:"pending",notes:"",createdAt:"2026-07-01T00:00:00.000Z"},
+  {id:"hist_1072",client:"Amit Rai",job:"",total:7165,deposited:0,remaining:7165,billedDate:"2026-08-01",dueDate:"2026-08-15",massSave:true,status:"pending",notes:"",createdAt:"2026-08-01T00:00:00.000Z"},
+  {id:"hist_1073",client:"Amit Rai",job:"",total:4291,deposited:0,remaining:4291,billedDate:"2026-09-01",dueDate:"2026-09-15",massSave:true,status:"pending",notes:"",createdAt:"2026-09-01T00:00:00.000Z"},
+  {id:"hist_1074",client:"Air Culin",job:"",total:9562,deposited:9562,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1075",client:"Air Culin",job:"",total:9562,deposited:0,remaining:9562,billedDate:"2026-07-01",dueDate:"2026-07-15",massSave:false,status:"pending",notes:"",createdAt:"2026-07-01T00:00:00.000Z"},
+];
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = n => n==null||n===""?"":"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtK = n => {const v=Math.abs(Number(n)||0);return (Number(n)<0?"-":"")+"$"+(v>=1000?(v/1000).toFixed(1)+"k":v.toFixed(0));};
@@ -303,7 +384,7 @@ function ModalReceivable({onSave,onClose,month,year}) {
     <div className="mtitle">New Receivable</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div className="fg"><div className="fl">Client Name</div><input value={f.client} onChange={e=>s("client",e.target.value)} placeholder="Client name"/></div>
-      <div className="fg"><div className="fl">Job Description</div><input value={f.job} onChange={e=>s("job",e.target.value)} placeholder="e.g. HVAC installation"/></div>
+      <div className="fg"><div className="fl">Job Description</div><input value={f.job} onChange={e=>s("job",e.target.value)} placeholder="e.g. HVAC installation or Invoice #1234"/></div>
       <div className="g2">
         <div className="fg"><div className="fl">Invoice Date</div><input type="date" value={f.billedDate} onChange={e=>s("billedDate",e.target.value)}/></div>
         <div className="fg"><div className="fl">Payment Due Date</div><input type="date" value={f.dueDate} onChange={e=>s("dueDate",e.target.value)}/></div>
@@ -420,9 +501,46 @@ function ModalPayable({onSave,onClose,month,year}) {
   </div></div>;
 }
 
+
+// ─── MODAL EDIT RECEIVABLE ────────────────────────────────────────────────────
+function ModalEditReceivable({item,onSave,onClose}) {
+  const [f,setF]=useState({...item});
+  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  const rem=Math.max(0,fmtNum(f.total)-fmtNum(f.deposited));
+  return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
+    <div className="mtitle">Edit Receivable — {item.client}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div className="fg"><div className="fl">Client Name</div><input value={f.client} onChange={e=>s("client",e.target.value)}/></div>
+      <div className="fg"><div className="fl">Job / Invoice #</div><input value={f.job||""} onChange={e=>s("job",e.target.value)} placeholder="e.g. HVAC installation or Invoice #1234"/></div>
+      <div className="g2">
+        <div className="fg"><div className="fl">Invoice Date</div><input type="date" value={f.billedDate||""} onChange={e=>s("billedDate",e.target.value)}/></div>
+        <div className="fg"><div className="fl">Payment Due Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
+      </div>
+      <div className="g2">
+        <div className="fg"><div className="fl">Total Amount ($)</div><input type="number" value={f.total} onChange={e=>s("total",e.target.value)}/></div>
+        <div className="fg"><div className="fl">Already Deposited ($)</div><input type="number" value={f.deposited} onChange={e=>s("deposited",e.target.value)}/></div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}><input type="checkbox" id="mse" checked={f.massSave||false} onChange={e=>s("massSave",e.target.checked)} style={{width:"auto"}}/><label htmlFor="mse" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Mass Save</label></div>
+      <div className="fg"><div className="fl">Status</div>
+        <select value={f.status} onChange={e=>s("status",e.target.value)}>
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+        </select>
+      </div>
+      <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
+      <div style={{background:"rgba(74,188,212,0.1)",border:"1px solid rgba(74,188,212,0.2)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#4ABCD4"}}>Balance: {fmt(rem)}</div>
+    </div>
+    <div className="mact">
+      <button className="btn bgg" onClick={onClose}>Cancel</button>
+      <button className="btn bp" onClick={()=>{onSave({...f,remaining:rem,status:rem<=0?"paid":f.status});onClose();}}>Save Changes</button>
+    </div>
+  </div></div>;
+}
+
 // ─── RECEIVABLES TAB ──────────────────────────────────────────────────────────
 function ReceivablesTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
+  const [editItem,setEditItem]=useState(null);
   const [filter,setFilter]=useState("all");
   const items=useMemo(()=>(data.receivables||[]).filter(r=>{
     const d=new Date(r.createdAt||r.dueDate||Date.now());
@@ -437,8 +555,13 @@ function ReceivablesTab({data,setData,month,year}) {
   const totalRem=items.reduce((s,r)=>s+fmtNum(r.remaining),0);
   const overdue=items.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0).length;
   const markPaid=id=>setData(d=>({...d,receivables:d.receivables.map(r=>r.id===id?{...r,status:"paid",deposited:r.total,remaining:0}:r)}));
-  const del=id=>setData(d=>({...d,receivables:d.receivables.filter(r=>r.id!==id)}));
+  const del=id=>{if(!window.confirm("Are you sure you want to delete this receivable? This cannot be undone.")) return;
+    // Mark historical items as deleted in Firebase too
+    if(id.startsWith("hist_")) fbSet("receivables",id,{id,_deleted:true});
+    setData(d=>({...d,receivables:d.receivables.filter(r=>r.id!==id)}));
+  };
   const add=item=>setData(d=>({...d,receivables:[...(d.receivables||[]),item]}));
+  const update=item=>setData(d=>({...d,receivables:d.receivables.map(r=>r.id===item.id?{...r,...item}:r)}));
   return <div>
     <div className="help-box">
       <strong>📋 Receivables — How to use:</strong><br/>
@@ -464,7 +587,7 @@ function ReceivablesTab({data,setData,month,year}) {
     <div className="card" style={{padding:0,overflow:"hidden"}}>
       {items.length===0?<div className="empty"><div className="ei">📋</div>No receivables this month</div>:(
         <table>
-          <thead><tr><th>Client</th><th>Job</th><th>Invoice Date</th><th>Total</th><th>Deposited</th><th>Balance</th><th>Aging</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Client</th><th>Job / Invoice #</th><th>Invoice Date</th><th>Total</th><th>Deposited</th><th>Balance</th><th>Aging</th><th>Status</th><th></th></tr></thead>
           <tbody>{items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <tr key={r.id}>
             <td><div style={{fontWeight:500}}>{r.client}{r.totalInstallments>1&&<span className="installment-tag">{r.installmentNum}/{r.totalInstallments}</span>}</div>{r.massSave&&<span className="tag" style={{marginTop:2}}>Mass Save</span>}</td>
             <td style={{color:C.text2,maxWidth:140}}>{r.job}</td>
@@ -474,26 +597,29 @@ function ReceivablesTab({data,setData,month,year}) {
             <td><span className={fmtNum(r.remaining)>0?"an":"ap"}>{fmt(r.remaining)}</span></td>
             <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{r.dueDate?ag.label:"—"}</span></td>
             <td><span className={`badge ${r.status==="paid"?"bg":"bam"}`}>{r.status==="paid"?"Paid":"Pending"}</span></td>
-            <td><div className="acts">{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓</button>}<button className="btn bsm bdel" onClick={()=>del(r.id)}>✕</button></div></td>
+            <td><div className="acts">{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(r)} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕</button></div></td>
           </tr>;})}
           </tbody>
         </table>
       )}
     </div>
     {showAdd&&<ModalReceivable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
+    {editItem&&<ModalEditReceivable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onClose={()=>setEditItem(null)}/>}
   </div>;
 }
 
 // ─── CONTRACTORS TAB ──────────────────────────────────────────────────────────
 function ContractorsTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
+  const [editItem,setEditItem]=useState(null);
   const items=useMemo(()=>(data.contractors||[]).filter(r=>{const d=new Date(r.createdAt||r.dueDate||Date.now());return d.getMonth()===month&&d.getFullYear()===year;}),[data.contractors,month,year]);
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
   const markPaid=id=>setData(d=>({...d,contractors:d.contractors.map(c=>c.id===id?{...c,status:"paid",paidAt:new Date().toISOString()}:c)}));
-  const del=id=>setData(d=>({...d,contractors:d.contractors.filter(c=>c.id!==id)}));
+  const del=id=>{if(!window.confirm("Are you sure you want to delete this payment?")) return;setData(d=>({...d,contractors:d.contractors.filter(c=>c.id!==id)}));};
   const add=item=>setData(d=>({...d,contractors:[...(d.contractors||[]),item]}));
+  const update=item=>setData(d=>({...d,contractors:d.contractors.map(c=>c.id===item.id?{...c,...item}:c)}));
   return <div>
     <div className="help-box">
       <strong>🔧 Subcontractors — How to use:</strong><br/>
@@ -515,7 +641,7 @@ function ContractorsTab({data,setData,month,year}) {
     <div className="card" style={{padding:0,overflow:"hidden"}}>
       {items.length===0?<div className="empty"><div className="ei">🔧</div>No payments this month</div>:(
         <table>
-          <thead><tr><th>Subcontractor</th><th>Job</th><th>Amount</th><th>Date</th><th>Aging</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Subcontractor</th><th>Job / Invoice #</th><th>Amount</th><th>Date</th><th>Aging</th><th>Status</th><th></th></tr></thead>
           <tbody>{items.sort((a,b)=>a.status==="paid"?1:-1).map(c=>{const ag=agingLabel(agingDays(c.dueDate));return <tr key={c.id}>
             <td style={{fontWeight:500}}>{c.name}{c.totalInstallments>1&&<span className="installment-tag">{c.installmentNum}/{c.totalInstallments}</span>}</td>
             <td style={{color:C.text2}}>{c.job}</td>
@@ -523,26 +649,42 @@ function ContractorsTab({data,setData,month,year}) {
             <td style={{color:C.text2,fontSize:12}}>{c.dueDate||"—"}</td>
             <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{c.dueDate?ag.label:"—"}</span></td>
             <td><span className={`badge ${c.status==="paid"?"bg":"br"}`}>{c.status==="paid"?"Paid":"Pending"}</span></td>
-            <td><div className="acts">{c.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(c.id)}>✓ Paid</button>}<button className="btn bsm bdel" onClick={()=>del(c.id)}>✕</button></div></td>
+            <td><div className="acts">{c.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(c.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(c)} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(c.id)}>✕</button></div></td>
           </tr>;})}
           </tbody>
         </table>
       )}
     </div>
     {showAdd&&<ModalContractor onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
+    {editItem&&<div className="overlay" onClick={()=>setEditItem(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="mtitle">Edit — {editItem.name}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div className="fg"><div className="fl">Name</div><input value={editItem.name} onChange={e=>setEditItem(p=>({...p,name:e.target.value}))}/></div>
+        <div className="fg"><div className="fl">Job</div><input value={editItem.job||""} onChange={e=>setEditItem(p=>({...p,job:e.target.value}))}/></div>
+        <div className="g2">
+          <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={editItem.amount} onChange={e=>setEditItem(p=>({...p,amount:e.target.value}))}/></div>
+          <div className="fg"><div className="fl">Payment Date</div><input type="date" value={editItem.dueDate||""} onChange={e=>setEditItem(p=>({...p,dueDate:e.target.value}))}/></div>
+        </div>
+        <div className="fg"><div className="fl">Status</div><select value={editItem.status} onChange={e=>setEditItem(p=>({...p,status:e.target.value}))}><option value="pending">Pending</option><option value="paid">Paid</option></select></div>
+        <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={editItem.notes||""} onChange={e=>setEditItem(p=>({...p,notes:e.target.value}))}/></div>
+      </div>
+      <div className="mact"><button className="btn bgg" onClick={()=>setEditItem(null)}>Cancel</button><button className="btn bp" onClick={()=>{update(editItem);setEditItem(null);}}>Save Changes</button></div>
+    </div></div>}
   </div>;
 }
 
 // ─── PAYABLES TAB ─────────────────────────────────────────────────────────────
 function PayablesTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
+  const [editItem,setEditItem]=useState(null);
   const items=useMemo(()=>(data.payables||[]).filter(r=>{const d=new Date(r.createdAt||r.dueDate||Date.now());return d.getMonth()===month&&d.getFullYear()===year;}),[data.payables,month,year]);
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
   const markPaid=id=>setData(d=>({...d,payables:d.payables.map(p=>p.id===id?{...p,status:"paid",paidAt:new Date().toISOString()}:p)}));
-  const del=id=>setData(d=>({...d,payables:d.payables.filter(p=>p.id!==id)}));
+  const del=id=>{if(!window.confirm("Are you sure you want to delete this payable?")) return;setData(d=>({...d,payables:d.payables.filter(p=>p.id!==id)}));};
   const add=item=>setData(d=>({...d,payables:[...(d.payables||[]),item]}));
+  const update=item=>setData(d=>({...d,payables:d.payables.map(p=>p.id===item.id?{...p,...item}:p)}));
   return <div>
     <div className="help-box">
       <strong>🧾 Payables — How to use:</strong><br/>
@@ -574,13 +716,32 @@ function PayablesTab({data,setData,month,year}) {
             <td style={{color:C.text2,fontSize:12,fontFamily:"var(--mono)"}}>{p.dueDate||"—"}</td>
             <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{p.dueDate?ag.label:"—"}</span></td>
             <td><span className={`badge ${p.status==="paid"?"bg":"br"}`}>{p.status==="paid"?"Paid":"Pending"}</span></td>
-            <td><div className="acts">{p.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(p.id)}>✓ Paid</button>}<button className="btn bsm bdel" onClick={()=>del(p.id)}>✕</button></div></td>
+            <td><div className="acts">{p.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(p.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(p)} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(p.id)}>✕</button></div></td>
           </tr>;})}
           </tbody>
         </table>
       )}
     </div>
     {showAdd&&<ModalPayable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
+    {editItem&&<div className="overlay" onClick={()=>setEditItem(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
+      <div className="mtitle">Edit — {editItem.description}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div className="fg"><div className="fl">Description</div><input value={editItem.description} onChange={e=>setEditItem(p=>({...p,description:e.target.value}))}/></div>
+        <div className="fg"><div className="fl">Vendor</div><input value={editItem.vendor||""} onChange={e=>setEditItem(p=>({...p,vendor:e.target.value}))}/></div>
+        <div className="g2">
+          <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={editItem.amount} onChange={e=>setEditItem(p=>({...p,amount:Number(e.target.value)}))}/></div>
+          <div className="fg"><div className="fl">Due Date</div><input type="date" value={editItem.dueDate||""} onChange={e=>setEditItem(p=>({...p,dueDate:e.target.value}))}/></div>
+        </div>
+        <div className="fg"><div className="fl">Category</div>
+          <select value={editItem.category||"custos_fixos"} onChange={e=>setEditItem(p=>({...p,category:e.target.value}))}>
+            {Object.entries(DRE_LABELS).filter(([k])=>!["receita_liquida","margem","lucro_op","lucro_ir","rev_operacional","rev_genn","impostos"].includes(k)).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div className="fg"><div className="fl">Status</div><select value={editItem.status} onChange={e=>setEditItem(p=>({...p,status:e.target.value}))}><option value="pending">Pending</option><option value="paid">Paid</option></select></div>
+        <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={editItem.notes||""} onChange={e=>setEditItem(p=>({...p,notes:e.target.value}))}/></div>
+      </div>
+      <div className="mact"><button className="btn bgg" onClick={()=>setEditItem(null)}>Cancel</button><button className="btn bp" onClick={()=>{update(editItem);setEditItem(null);}}>Save Changes</button></div>
+    </div></div>}
   </div>;
 }
 
@@ -783,6 +944,9 @@ function CashFlowTab({data,setData,month,year}) {
     </div>
 
     <BasisNotice type="cashflow"/>
+    {(year<2026||(year===2026&&month<5))
+      ?<div style={{textAlign:"center",padding:"48px 24px",color:"var(--t2)",fontSize:13,background:"var(--bg2)",borderRadius:12}}>🔒 Cash Flow tracking starts from <strong style={{color:"var(--t1)"}}>June 2026</strong>. Switch to June or later.</div>
+      :<div>
     <div className="ptitle" style={{marginBottom:4}}>Cash Flow Projection</div>
     <div className="psub">{MONTHS_EN[month]} {year}</div>
 
@@ -914,6 +1078,7 @@ function CashFlowTab({data,setData,month,year}) {
         })}
       </div>}
     </div>
+    </div>}
   </div>;
 }
 
@@ -1231,7 +1396,21 @@ export default function App() {
   useEffect(()=>{
     let loaded=0;const check=()=>{loaded++;if(loaded>=4) setLoading(false);};
     const unsubs=[];
-    unsubs.push(onSnapshot(collection(db,"receivables"),snap=>{setDataRaw(p=>({...p,receivables:snap.docs.map(d=>({id:d.id,...d.data()}))}));check();},(e)=>{console.error(e);check();}));
+    unsubs.push(onSnapshot(collection(db,"receivables"),snap=>{
+      const fbRecs=snap.docs.map(d=>({id:d.id,...d.data()}));
+      const fbIds=new Set(fbRecs.map(r=>r.id));
+      const deletedHist=new Set();
+      snap.docs.forEach(d=>{if(d.data()._deleted) deletedHist.add(d.id);});
+      // Auto-seed: if none of the hist items exist in Firebase yet, write them all
+      const histMissing=HIST_RECEIVABLES.filter(r=>!fbIds.has(r.id));
+      if(histMissing.length===HIST_RECEIVABLES.length) {
+        // First load — seed all historical receivables to Firebase
+        histMissing.forEach(r=>fbSet("receivables",r.id,r));
+      }
+      const histItems=HIST_RECEIVABLES.filter(r=>!fbIds.has(r.id)&&!deletedHist.has(r.id));
+      setDataRaw(p=>({...p,receivables:[...histItems,...fbRecs.filter(r=>!r._deleted)]}));
+      check();
+    },(e)=>{console.error(e);check();}));
     unsubs.push(onSnapshot(collection(db,"contractors"),snap=>{setDataRaw(p=>({...p,contractors:snap.docs.map(d=>({id:d.id,...d.data()}))}));check();},(e)=>{console.error(e);check();}));
     unsubs.push(onSnapshot(collection(db,"payables"),snap=>{setDataRaw(p=>({...p,payables:snap.docs.map(d=>({id:d.id,...d.data()}))}));check();},(e)=>{console.error(e);check();}));
     unsubs.push(onSnapshot(collection(db,"dre"),snap=>{
