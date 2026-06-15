@@ -72,24 +72,24 @@ const HIST_E = {
 
 // ─── HISTORICAL RECEIVABLES ───────────────────────────────────────────────────
 const HIST_RECEIVABLES = [
-  {id:"hist_1000",client:"Pourya Hoseini",job:"",total:10000,deposited:0,remaining:10000,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1001",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
-  {id:"hist_1002",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
-  {id:"hist_1003",client:"Freda",job:"",total:600,deposited:0,remaining:600,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1004",client:"Freda",job:"",total:600,deposited:0,remaining:600,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
-  {id:"hist_1005",client:"Freda",job:"",total:600,deposited:0,remaining:600,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
-  {id:"hist_1006",client:"Peter Pilla",job:"",total:10000,deposited:10000,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:true,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
-  {id:"hist_1007",client:"Revival Development",job:"",total:7600,deposited:7600,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
-  {id:"hist_1008",client:"Revival Development",job:"",total:7600,deposited:0,remaining:7600,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1009",client:"Revival Development",job:"",total:3900,deposited:0,remaining:3900,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
-  {id:"hist_1010",client:"Carlo Digiantommaso",job:"",total:10000,deposited:0,remaining:10000,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1000",client:"Pourya Hoseini",job:"",total:10000,deposited:10000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1001",client:"Carlo Digiantommaso",job:"",total:10000,deposited:10000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1002",client:"Revival Development",job:"",total:7600,deposited:7600,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1003",client:"Revival Development",job:"",total:7600,deposited:7600,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1004",client:"Revival Development",job:"",total:3900,deposited:3900,remaining:0,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"paid",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1005",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
+  {id:"hist_1006",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
+  {id:"hist_1007",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1008",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"paid",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1009",client:"Freda",job:"",total:600,deposited:600,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1010",client:"Peter Pilla",job:"",total:10000,deposited:10000,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:true,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
   {id:"hist_1011",client:"Tommy",job:"",total:6760,deposited:6760,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
   {id:"hist_1012",client:"Tommy",job:"",total:6760,deposited:6760,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
   {id:"hist_1013",client:"Tommy",job:"",total:8000,deposited:8000,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
-  {id:"hist_1014",client:"Tommy",job:"",total:1203,deposited:0,remaining:1203,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1014",client:"Tommy",job:"",total:1203,deposited:1203,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
   {id:"hist_1015",client:"Franck Garofalo",job:"",total:4000,deposited:4000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1016",client:"Franck Garofalo",job:"",total:17600,deposited:0,remaining:17600,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
-  {id:"hist_1017",client:"Franck Garofalo",job:"",total:6000,deposited:0,remaining:6000,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1016",client:"Franck Garofalo",job:"",total:17600,deposited:17600,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1017",client:"Franck Garofalo",job:"",total:6000,deposited:6000,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
   {id:"hist_1018",client:"Scott Peterson",job:"",total:18625,deposited:0,remaining:18625,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
   {id:"hist_1019",client:"Michael St Louis",job:"",total:12000,deposited:12000,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:true,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
   {id:"hist_1020",client:"Michael St Louis",job:"",total:900,deposited:0,remaining:900,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
@@ -102,42 +102,42 @@ const HIST_RECEIVABLES = [
   {id:"hist_1027",client:"Robinson",job:"",total:7900,deposited:7900,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
   {id:"hist_1028",client:"Adam Volin",job:"",total:4782,deposited:4782,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
   {id:"hist_1029",client:"Scott Gould",job:"",total:2151,deposited:2151,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1030",client:"Scott Gould",job:"",total:4945,deposited:0,remaining:4945,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
-  {id:"hist_1031",client:"Flawless Construction",job:"",total:2800,deposited:0,remaining:2800,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1030",client:"Scott Gould",job:"",total:4945,deposited:4945,remaining:0,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"paid",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1031",client:"Flawless Construction",job:"",total:2800,deposited:2800,remaining:0,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"paid",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
   {id:"hist_1032",client:"Lowell Dsouza",job:"",total:9000,deposited:9000,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
   {id:"hist_1033",client:"Lowell Dsouza",job:"",total:4000,deposited:4000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1034",client:"Lowell Dsouza",job:"",total:500,deposited:0,remaining:500,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1034",client:"Lowell Dsouza",job:"",total:500,deposited:500,remaining:0,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"paid",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
   {id:"hist_1035",client:"Kurtis",job:"",total:2020,deposited:2020,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
   {id:"hist_1036",client:"Angel Soto",job:"",total:10000,deposited:10000,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
   {id:"hist_1037",client:"Eric Robichaud",job:"",total:7875,deposited:7875,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
-  {id:"hist_1038",client:"Eric Robichaud",job:"",total:2000,deposited:0,remaining:2000,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1038",client:"Eric Robichaud",job:"",total:2000,deposited:2000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
   {id:"hist_1039",client:"Michelle Trahn",job:"",total:9590,deposited:9590,remaining:0,billedDate:"2026-01-01",dueDate:"2026-01-15",massSave:false,status:"paid",notes:"",createdAt:"2026-01-01T00:00:00.000Z"},
   {id:"hist_1040",client:"Michelle Trahn",job:"",total:8839,deposited:8839,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
   {id:"hist_1041",client:"Ezequias",job:"",total:13282,deposited:13282,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
-  {id:"hist_1042",client:"Ezequias",job:"",total:13282,deposited:0,remaining:13282,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"pending",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
+  {id:"hist_1042",client:"Ezequias",job:"",total:13282,deposited:13282,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
   {id:"hist_1043",client:"Sabrina Ibarra",job:"",total:11874,deposited:11874,remaining:0,billedDate:"2026-02-01",dueDate:"2026-02-15",massSave:false,status:"paid",notes:"",createdAt:"2026-02-01T00:00:00.000Z"},
   {id:"hist_1044",client:"Sabrina Ibarra",job:"",total:12108,deposited:12108,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1045",client:"Sabrina Ibarra",job:"",total:3485,deposited:0,remaining:3485,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1045",client:"Sabrina Ibarra",job:"",total:3485,deposited:3485,remaining:0,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"paid",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
   {id:"hist_1046",client:"Shoulin",job:"",total:25000,deposited:25000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1047",client:"Shoulin",job:"",total:3715,deposited:0,remaining:3715,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1047",client:"Shoulin",job:"",total:3715,deposited:3715,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
   {id:"hist_1048",client:"Sidone",job:"",total:3500,deposited:3500,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1049",client:"Sidone",job:"",total:3000,deposited:0,remaining:3000,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1049",client:"Sidone",job:"",total:3000,deposited:3000,remaining:0,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"paid",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
   {id:"hist_1050",client:"Andrew Frank",job:"",total:7512,deposited:7512,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:false,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1051",client:"Andrew Frank",job:"",total:7512,deposited:0,remaining:7512,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"pending",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
+  {id:"hist_1051",client:"Andrew Frank",job:"",total:7512,deposited:7512,remaining:0,billedDate:"2026-04-01",dueDate:"2026-04-15",massSave:false,status:"paid",notes:"",createdAt:"2026-04-01T00:00:00.000Z"},
   {id:"hist_1052",client:"Eka",job:"",total:25000,deposited:25000,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1053",client:"Eka",job:"",total:8500,deposited:0,remaining:8500,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1053",client:"Eka",job:"",total:8500,deposited:8500,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
   {id:"hist_1054",client:"Cleber",job:"",total:4333,deposited:4333,remaining:0,billedDate:"2026-03-01",dueDate:"2026-03-15",massSave:true,status:"paid",notes:"",createdAt:"2026-03-01T00:00:00.000Z"},
-  {id:"hist_1055",client:"Cleber",job:"",total:8667,deposited:0,remaining:8667,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1055",client:"Cleber",job:"",total:8667,deposited:8667,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
   {id:"hist_1056",client:"Andy",job:"",total:21200,deposited:21200,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
-  {id:"hist_1057",client:"Andy",job:"",total:21200,deposited:0,remaining:21200,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1057",client:"Andy",job:"",total:21200,deposited:21200,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
   {id:"hist_1058",client:"Andy",job:"",total:7600,deposited:0,remaining:7600,billedDate:"2026-07-01",dueDate:"2026-07-15",massSave:false,status:"pending",notes:"",createdAt:"2026-07-01T00:00:00.000Z"},
   {id:"hist_1059",client:"Willscott",job:"",total:8248,deposited:8248,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
-  {id:"hist_1060",client:"Willscott",job:"",total:8248,deposited:0,remaining:8248,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
-  {id:"hist_1061",client:"Brian Casey",job:"",total:17860,deposited:0,remaining:17860,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
-  {id:"hist_1062",client:"Jasmine Shovlin",job:"",total:16505,deposited:0,remaining:16505,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
-  {id:"hist_1063",client:"Ann-Marie",job:"",total:15406,deposited:0,remaining:15406,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"pending",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
-  {id:"hist_1064",client:"Joe Roberts",job:"",total:29500,deposited:0,remaining:29500,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:true,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
-  {id:"hist_1065",client:"Marguerite Guillaume",job:"",total:20828,deposited:0,remaining:20828,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:true,status:"pending",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1060",client:"Willscott",job:"",total:8248,deposited:8248,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1061",client:"Brian Casey",job:"",total:17860,deposited:17860,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:true,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1062",client:"Jasmine Shovlin",job:"",total:16505,deposited:16505,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1063",client:"Ann-Marie",job:"",total:15406,deposited:15406,remaining:0,billedDate:"2026-05-01",dueDate:"2026-05-15",massSave:false,status:"paid",notes:"",createdAt:"2026-05-01T00:00:00.000Z"},
+  {id:"hist_1064",client:"Joe Roberts",job:"",total:29500,deposited:29500,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:true,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
+  {id:"hist_1065",client:"Marguerite Guillaume",job:"",total:20828,deposited:20828,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:true,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
   {id:"hist_1066",client:"Samuel Kang",job:"",total:6975,deposited:6975,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
   {id:"hist_1067",client:"Samuel Kang",job:"",total:6975,deposited:0,remaining:6975,billedDate:"2026-07-01",dueDate:"2026-07-15",massSave:false,status:"pending",notes:"",createdAt:"2026-07-01T00:00:00.000Z"},
   {id:"hist_1068",client:"Gary Smith",job:"",total:1693,deposited:1693,remaining:0,billedDate:"2026-06-01",dueDate:"2026-06-15",massSave:false,status:"paid",notes:"",createdAt:"2026-06-01T00:00:00.000Z"},
@@ -561,7 +561,7 @@ function ReceivablesTab({data,setData,month,year}) {
     setData(d=>({...d,receivables:d.receivables.filter(r=>r.id!==id)}));
   };
   const add=item=>setData(d=>({...d,receivables:[...(d.receivables||[]),item]}));
-  const update=item=>setData(d=>({...d,receivables:d.receivables.map(r=>r.id===item.id?{...r,...item}:r)}));
+  const update=item=>{fbSet("receivables",item.id,item);setData(d=>({...d,receivables:d.receivables.map(r=>r.id===item.id?{...r,...item}:r)}));};
   return <div>
     <div className="help-box">
       <strong>📋 Receivables — How to use:</strong><br/>
@@ -595,7 +595,7 @@ function ReceivablesTab({data,setData,month,year}) {
             <td><span className="am">{fmt(r.total)}</span></td>
             <td><span className="ap">{fmt(r.deposited)}</span></td>
             <td><span className={fmtNum(r.remaining)>0?"an":"ap"}>{fmt(r.remaining)}</span></td>
-            <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{r.dueDate?ag.label:"—"}</span></td>
+            <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{r.status==="paid"?"—":r.dueDate?ag.label:"—"}</span></td>
             <td><span className={`badge ${r.status==="paid"?"bg":"bam"}`}>{r.status==="paid"?"Paid":"Pending"}</span></td>
             <td><div className="acts">{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(r)} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕</button></div></td>
           </tr>;})}
@@ -619,7 +619,7 @@ function ContractorsTab({data,setData,month,year}) {
   const markPaid=id=>setData(d=>({...d,contractors:d.contractors.map(c=>c.id===id?{...c,status:"paid",paidAt:new Date().toISOString()}:c)}));
   const del=id=>{if(!window.confirm("Are you sure you want to delete this payment?")) return;setData(d=>({...d,contractors:d.contractors.filter(c=>c.id!==id)}));};
   const add=item=>setData(d=>({...d,contractors:[...(d.contractors||[]),item]}));
-  const update=item=>setData(d=>({...d,contractors:d.contractors.map(c=>c.id===item.id?{...c,...item}:c)}));
+  const update=item=>{fbSet("contractors",item.id,item);setData(d=>({...d,contractors:d.contractors.map(c=>c.id===item.id?{...c,...item}:c)}));};
   return <div>
     <div className="help-box">
       <strong>🔧 Subcontractors — How to use:</strong><br/>
@@ -647,7 +647,7 @@ function ContractorsTab({data,setData,month,year}) {
             <td style={{color:C.text2}}>{c.job}</td>
             <td><span className="am">{fmt(c.amount)}</span></td>
             <td style={{color:C.text2,fontSize:12}}>{c.dueDate||"—"}</td>
-            <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{c.dueDate?ag.label:"—"}</span></td>
+            <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{c.status==="paid"?"—":c.dueDate?ag.label:"—"}</span></td>
             <td><span className={`badge ${c.status==="paid"?"bg":"br"}`}>{c.status==="paid"?"Paid":"Pending"}</span></td>
             <td><div className="acts">{c.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(c.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(c)} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(c.id)}>✕</button></div></td>
           </tr>;})}
@@ -684,7 +684,7 @@ function PayablesTab({data,setData,month,year}) {
   const markPaid=id=>setData(d=>({...d,payables:d.payables.map(p=>p.id===id?{...p,status:"paid",paidAt:new Date().toISOString()}:p)}));
   const del=id=>{if(!window.confirm("Are you sure you want to delete this payable?")) return;setData(d=>({...d,payables:d.payables.filter(p=>p.id!==id)}));};
   const add=item=>setData(d=>({...d,payables:[...(d.payables||[]),item]}));
-  const update=item=>setData(d=>({...d,payables:d.payables.map(p=>p.id===item.id?{...p,...item}:p)}));
+  const update=item=>{fbSet("payables",item.id,item);setData(d=>({...d,payables:d.payables.map(p=>p.id===item.id?{...p,...item}:p)}));};
   return <div>
     <div className="help-box">
       <strong>🧾 Payables — How to use:</strong><br/>
@@ -714,7 +714,7 @@ function PayablesTab({data,setData,month,year}) {
             <td><span className="tag">{DRE_LABELS[p.category]?.split(" ").slice(0,2).join(" ")||p.category}</span></td>
             <td><span className="am">{fmt(p.amount)}</span></td>
             <td style={{color:C.text2,fontSize:12,fontFamily:"var(--mono)"}}>{p.dueDate||"—"}</td>
-            <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{p.dueDate?ag.label:"—"}</span></td>
+            <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{p.status==="paid"?"—":p.dueDate?ag.label:"—"}</span></td>
             <td><span className={`badge ${p.status==="paid"?"bg":"br"}`}>{p.status==="paid"?"Paid":"Pending"}</span></td>
             <td><div className="acts">{p.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(p.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(p)} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(p.id)}>✕</button></div></td>
           </tr>;})}
