@@ -157,14 +157,22 @@ const fmtNum = n => n==null||n===""?0:Number(n)||0;
 const today = new Date();
 const todayStr = today.toISOString().split("T")[0];
 
-function agingDays(d){if(!d) return null;return Math.floor((today-new Date(d))/86400000);}
+// Parse a YYYY-MM-DD string as a LOCAL date (avoids UTC-shift bugs in negative timezones)
+function parseLocalDate(d){
+  if(!d) return null;
+  if(typeof d!=="string") return new Date(d);
+  const parts=d.split("-");
+  if(parts.length===3) return new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
+  return new Date(d);
+}
+function agingDays(d){if(!d) return null;const dt=parseLocalDate(d);return Math.floor((today-dt)/86400000);}
 function agingLabel(days){
   if(days===null) return {label:"—",color:"#888"};
-  if(days<0) return {label:`Vence em ${Math.abs(days)}d`,color:C.green};
-  if(days===0) return {label:"Vence hoje",color:C.amber};
-  if(days<=7) return {label:`${days}d atraso`,color:C.amber};
-  if(days<=30) return {label:`${days}d atraso`,color:C.red};
-  return {label:`${days}d atraso`,color:"#991b1b"};
+  if(days<0) return {label:`Due in ${Math.abs(days)}d`,color:C.green};
+  if(days===0) return {label:"Due today",color:C.amber};
+  if(days<=7) return {label:`${days}d overdue`,color:C.amber};
+  if(days<=30) return {label:`${days}d overdue`,color:C.red};
+  return {label:`${days}d overdue`,color:"#991b1b"};
 }
 
 function computeDRE(d){
@@ -412,7 +420,7 @@ function ModalReceivable({onSave,onClose,month,year}) {
           let m=month+i;let y=year;if(m>11){m=m-12;y+=1;}
           const instRem=Math.round(rem/n*100)/100;
           let dd=f.dueDate;
-          if(f.dueDate&&i>0){try{const d=new Date(f.dueDate);d.setMonth(d.getMonth()+i);dd=d.toISOString().split("T")[0];}catch(e){}}
+          if(f.dueDate&&i>0){try{const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);dd=d.toISOString().split("T")[0];}catch(e){}}
           onSave({...f,id:Date.now().toString()+i,groupId:n>1?groupId:null,installmentNum:n>1?i+1:null,totalInstallments:n>1?n:null,total:n>1?(i===0?fmtNum(f.total):instRem):fmtNum(f.total),deposited:i===0?fmtNum(f.deposited):0,remaining:instRem,dueDate:dd,status:instRem<=0?"paid":"pending",createdAt:new Date(y,m).toISOString()});
         }
         onClose();
@@ -450,7 +458,7 @@ function ModalContractor({onSave,onClose,month,year}) {
           let m=month+i;let y=year;if(m>11){m=m-12;y+=1;}
           const amt=Math.round(fmtNum(f.amount)/n*100)/100;
           let dd=f.dueDate;
-          if(f.dueDate&&i>0){try{const d=new Date(f.dueDate);d.setMonth(d.getMonth()+i);dd=d.toISOString().split("T")[0];}catch(e){}}
+          if(f.dueDate&&i>0){try{const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);dd=d.toISOString().split("T")[0];}catch(e){}}
           onSave({...f,id:Date.now().toString()+i,groupId:n>1?groupId:null,installmentNum:n>1?i+1:null,totalInstallments:n>1?n:null,amount:amt,dueDate:dd,status:"pending",createdAt:new Date(y,m).toISOString()});
         }
         onClose();
@@ -492,7 +500,7 @@ function ModalPayable({onSave,onClose,month,year}) {
         for(let i=0;i<n;i++){
           let m=month+i;let y=year;if(m>11){m=m-12;y+=1;}
           let dd=f.dueDate;
-          if(f.dueDate&&i>0){try{const d=new Date(f.dueDate);d.setMonth(d.getMonth()+i);dd=d.toISOString().split("T")[0];}catch(e){}}
+          if(f.dueDate&&i>0){try{const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);dd=d.toISOString().split("T")[0];}catch(e){}}
           onSave({...f,id:Date.now().toString()+i,groupId:n>1?groupId:null,installmentNum:n>1?i+1:null,totalInstallments:n>1?n:null,amount:fmtNum(f.amount),dueDate:dd,status:"pending",createdAt:new Date(y,m).toISOString()});
         }
         onClose();
@@ -543,7 +551,7 @@ function ReceivablesTab({data,setData,month,year}) {
   const [editItem,setEditItem]=useState(null);
   const [filter,setFilter]=useState("all");
   const items=useMemo(()=>(data.receivables||[]).filter(r=>{
-    const d=new Date(r.createdAt||r.dueDate||Date.now());
+    const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();
     if(d.getMonth()!==month||d.getFullYear()!==year) return false;
     if(filter==="pending") return r.status!=="paid";
     if(filter==="paid") return r.status==="paid";
@@ -612,7 +620,7 @@ function ReceivablesTab({data,setData,month,year}) {
 function ContractorsTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editItem,setEditItem]=useState(null);
-  const items=useMemo(()=>(data.contractors||[]).filter(r=>{const d=new Date(r.createdAt||r.dueDate||Date.now());return d.getMonth()===month&&d.getFullYear()===year;}),[data.contractors,month,year]);
+  const items=useMemo(()=>(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.contractors,month,year]);
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
@@ -677,7 +685,7 @@ function ContractorsTab({data,setData,month,year}) {
 function PayablesTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editItem,setEditItem]=useState(null);
-  const items=useMemo(()=>(data.payables||[]).filter(r=>{const d=new Date(r.createdAt||r.dueDate||Date.now());return d.getMonth()===month&&d.getFullYear()===year;}),[data.payables,month,year]);
+  const items=useMemo(()=>(data.payables||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.payables,month,year]);
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
@@ -904,9 +912,9 @@ function CashFlowTab({data,setData,month,year}) {
   const dayKeys=Array.from({length:daysInMonth},(_,i)=>`${year}-${String(month+1).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`);
   const dailyCSV=(data.cashFlowDaily?.[mk])||[];
 
-  const pendingRec=(data.receivables||[]).filter(r=>r.status!=="paid"&&r.dueDate&&new Date(r.dueDate).getMonth()===month&&new Date(r.dueDate).getFullYear()===year);
-  const pendingPay=(data.payables||[]).filter(p=>p.status!=="paid"&&p.dueDate&&new Date(p.dueDate).getMonth()===month&&new Date(p.dueDate).getFullYear()===year);
-  const pendingCon=(data.contractors||[]).filter(c=>c.status!=="paid"&&c.dueDate&&new Date(c.dueDate).getMonth()===month&&new Date(c.dueDate).getFullYear()===year);
+  const pendingRec=(data.receivables||[]).filter(r=>r.status!=="paid"&&r.dueDate&&parseLocalDate(r.dueDate).getMonth()===month&&parseLocalDate(r.dueDate).getFullYear()===year);
+  const pendingPay=(data.payables||[]).filter(p=>p.status!=="paid"&&p.dueDate&&parseLocalDate(p.dueDate).getMonth()===month&&parseLocalDate(p.dueDate).getFullYear()===year);
+  const pendingCon=(data.contractors||[]).filter(c=>c.status!=="paid"&&c.dueDate&&parseLocalDate(c.dueDate).getMonth()===month&&parseLocalDate(c.dueDate).getFullYear()===year);
 
   const chartData=useMemo(()=>{
     let balance=opening;
@@ -1090,12 +1098,12 @@ function OperationalDashboard({data,month,year}) {
   const realizedRaw={...baseData};
   DRE_INPUT_KEYS.forEach(k=>{realizedRaw[k]=fmtNum(baseData[k])+fmtNum(adjData[k]);});
   const computed=computeDRE(realizedRaw);
-  const receivables=(data.receivables||[]).filter(r=>{const d=new Date(r.createdAt||r.dueDate||Date.now());return d.getMonth()===month&&d.getFullYear()===year;});
-  const contractors=(data.contractors||[]).filter(r=>{const d=new Date(r.createdAt||r.dueDate||Date.now());return d.getMonth()===month&&d.getFullYear()===year;});
+  const receivables=(data.receivables||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
+  const contractors=(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
   const pendingRec=receivables.filter(r=>r.status!=="paid").reduce((s,r)=>s+fmtNum(r.remaining),0);
   const pendingCon=contractors.filter(c=>c.status!=="paid").reduce((s,c)=>s+fmtNum(c.amount),0);
   const overdueRec=receivables.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0);
-  const overduePay=(data.payables||[]).filter(p=>{const d=new Date(p.createdAt||p.dueDate||Date.now());return d.getMonth()===month&&d.getFullYear()===year&&p.status!=="paid"&&agingDays(p.dueDate)>0;});
+  const overduePay=(data.payables||[]).filter(p=>{const d=parseLocalDate(p.createdAt||p.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year&&p.status!=="paid"&&agingDays(p.dueDate)>0;});
   const margin=computed.receita_liquida>0?Math.round(computed.margem/computed.receita_liquida*100):0;
   return <div>
     <RolloverBanner month={month} year={year}/>
