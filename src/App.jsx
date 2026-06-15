@@ -157,11 +157,12 @@ const fmtNum = n => n==null||n===""?0:Number(n)||0;
 const today = new Date();
 const todayStr = today.toISOString().split("T")[0];
 
-// Parse a YYYY-MM-DD string as a LOCAL date (avoids UTC-shift bugs in negative timezones)
+// Parse a YYYY-MM-DD (or ISO datetime) string as a LOCAL date (avoids UTC-shift bugs in negative timezones)
 function parseLocalDate(d){
   if(!d) return null;
   if(typeof d!=="string") return new Date(d);
-  const parts=d.split("-");
+  const datePart=d.split("T")[0]; // strip time portion if present (ISO datetime)
+  const parts=datePart.split("-");
   if(parts.length===3) return new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
   return new Date(d);
 }
