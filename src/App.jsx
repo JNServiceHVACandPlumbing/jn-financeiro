@@ -24,7 +24,7 @@ const MONTHS_EN = ["January","February","March","April","May","June","July","Aug
 
 const JOBBER_MAP = {
   "gas":"cogs_fuel","softwares":"softwares","fixes costs - admin":"custos_fixos","fixes costs   admin":"custos_fixos",
-  "leads & marketing":"mkt","leads and marketing":"mkt","admin salaries":"sal_adm","stock":"cogs_materials",
+  "leads & marketing":"mkt","leads and marketing":"mkt","admin salaries":"sal_adm","stock":"estoque",
   "materials, equipments & permits - jobs":"cogs_materials","materials, equipments & permits   jobs":"cogs_materials",
   "employees payment - subcontract":"cogs_subs","employees payment   subcontract":"cogs_subs",
   "company expense - general costs and adm":"desp_gerais","company expense   general costs and adm":"desp_gerais",
@@ -43,16 +43,16 @@ const DRE_LABELS = {
   receita_liquida:"= Receita Líquida",cogs_materials:"Custo das Mercadorias Vendidas",cogs_genn:"Custo Plataforma GENN",
   cogs_subs:"Custo dos Subcontratados",cogs_fuel:"Gasolina",margem:"= Margem de Contribuição",
   mkt:"Despesas com Marketing",sal_ops:"Salários Suporte Operacional",sal_adm:"Salários Adm",
-  custos_fixos:"Custos Fixos Administrativos",softwares:"Softwares",contabilidade:"Contabilidade, Licenças, Seguros",
+  custos_fixos:"Custos Fixos Administrativos",estoque:"Estoque / Inventário",softwares:"Softwares",contabilidade:"Contabilidade, Licenças, Seguros",
   lucro_op:"= Lucro Operacional",desp_gerais:"Despesas Gerais e Adm",taxas_bank:"Taxas Bank, Juros",lucro_ir:"= Lucro Antes do IR",
 };
 
-const DRE_INPUT_KEYS = ["rev_operacional","rev_genn","impostos","cogs_materials","cogs_genn","cogs_subs","cogs_fuel","mkt","sal_ops","sal_adm","custos_fixos","softwares","contabilidade","desp_gerais","taxas_bank"];
+const DRE_INPUT_KEYS = ["rev_operacional","rev_genn","impostos","cogs_materials","cogs_genn","cogs_subs","cogs_fuel","mkt","sal_ops","sal_adm","custos_fixos","estoque","softwares","contabilidade","desp_gerais","taxas_bank"];
 
 const DRE_STRUCTURE = [
   {key:"rev_operacional",type:"input"},{key:"rev_genn",type:"input"},{key:"impostos",type:"input"},{key:"receita_liquida",type:"calc"},
   {key:"cogs_materials",type:"input"},{key:"cogs_genn",type:"input"},{key:"cogs_subs",type:"input"},{key:"cogs_fuel",type:"input"},{key:"margem",type:"calc"},
-  {key:"mkt",type:"input"},{key:"sal_ops",type:"input"},{key:"sal_adm",type:"input"},{key:"custos_fixos",type:"input"},{key:"softwares",type:"input"},{key:"contabilidade",type:"input"},{key:"lucro_op",type:"calc"},
+  {key:"mkt",type:"input"},{key:"sal_ops",type:"input"},{key:"sal_adm",type:"input"},{key:"custos_fixos",type:"input"},{key:"estoque",type:"input"},{key:"softwares",type:"input"},{key:"contabilidade",type:"input"},{key:"lucro_op",type:"calc"},
   {key:"desp_gerais",type:"input"},{key:"taxas_bank",type:"input"},{key:"lucro_ir",type:"calc"},
 ];
 
@@ -180,7 +180,7 @@ function computeDRE(d){
   const v=k=>fmtNum(d[k]);
   const receita_liquida=v("rev_operacional")+v("rev_genn")-v("impostos");
   const margem=receita_liquida-v("cogs_materials")-v("cogs_genn")-v("cogs_subs")-v("cogs_fuel");
-  const lucro_op=margem-v("mkt")-v("sal_ops")-v("sal_adm")-v("custos_fixos")-v("softwares")-v("contabilidade");
+  const lucro_op=margem-v("mkt")-v("sal_ops")-v("sal_adm")-v("custos_fixos")-v("estoque")-v("softwares")-v("contabilidade");
   const lucro_ir=lucro_op-v("desp_gerais")-v("taxas_bank");
   return {...d,receita_liquida,margem,lucro_op,lucro_ir};
 }
@@ -810,7 +810,7 @@ function DRETab({data,setData,month,year}) {
     <div className="help-box">
       <strong>📊 DRE — How to use:</strong><br/>
       <strong>How to download CSVs from Jobber:</strong><br/>
-      — Payments: <code>Jobber → Reports → Jobber Payments → Transactions → Filter: Entries Within This Month</code><br/>
+      — Payments: <code>Jobber → Reports → Financial Reports (Transaction List) → Paid → Filter: This Month</code><br/>
       — Expenses: <code>Jobber → Reports → Expense Reports → Expenses → Filter: This Month</code><br/><br/>
       Upload both CSVs below. The <strong>Realizada</strong> tab will populate automatically.<br/>
       Use <strong>Manual Adj.</strong> column to make retroactive corrections (e.g. a payment made in July that belongs to June costs) — these adjustments are saved separately and will NOT be overwritten when you re-upload the CSV.<br/>
@@ -822,7 +822,7 @@ function DRETab({data,setData,month,year}) {
         {["realizada","economica"].map(m=><button key={m} className={`btn bsm ${mode===m?"bp":"bgg"}`} onClick={()=>setMode(m)}>{m==="realizada"?"Realizada":"Econômica"}</button>)}
       </div>
     </div>
-    <div className="psub">{mode==="realizada"?"Import Jobber CSVs to populate. Use Manual Adj. for retroactive corrections.":"Realizada + economic adjustments based on undelivered jobs (Pipedrive)."}</div>
+    <div className="psub">{mode==="realizada"?"Import Jobber CSVs to populate. Use Manual Adj. for retroactive corrections.":"Realizada + economic adjustments based on undelivered jobs (Pipedrive). For jobs sold but not delivered, ask the deals to Junior, sum the amount, and the estimated costs for subs and materials."}</div>
 
     <div className="card" style={{marginBottom:16}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
@@ -835,7 +835,7 @@ function DRETab({data,setData,month,year}) {
           <label className="upzone" style={{display:"block"}}><div style={{fontSize:13,color:C.text2}}>📁 Jobber Expense Report</div><div style={{fontSize:11,color:C.text2,marginTop:4,opacity:.6}}>Click to upload — overwrites this month's data</div><input type="file" accept=".csv" style={{display:"none"}} onChange={e=>upload(e,"exp")}/></label>
         </div>
         <div><div className="fl" style={{marginBottom:6}}>Payments CSV</div>
-          <label className="upzone" style={{display:"block"}}><div style={{fontSize:13,color:C.text2}}>💰 Jobber Payments Report</div><div style={{fontSize:11,color:C.text2,marginTop:4,opacity:.6}}>Click to upload — populates revenue</div><input type="file" accept=".csv" style={{display:"none"}} onChange={e=>upload(e,"pay")}/></label>
+          <label className="upzone" style={{display:"block"}}><div style={{fontSize:13,color:C.text2}}>💰 Jobber Payments (Transaction List)</div><div style={{fontSize:11,color:C.text2,marginTop:4,opacity:.6}}>Click to upload — populates revenue</div><input type="file" accept=".csv" style={{display:"none"}} onChange={e=>upload(e,"pay")}/></label>
         </div>
       </div>
     </div>
@@ -884,7 +884,7 @@ function DRETab({data,setData,month,year}) {
       })}
     </div>
     <div className="info" style={{marginTop:12}}>
-      {mode==="realizada"?"⚠️ Manual Adj. column: use this for retroactive corrections (e.g. expenses paid in the wrong month). These are saved separately and survive CSV re-imports.":"💡 Eco Adj. column: fill in adjustments based on Pipedrive data for jobs invoiced but not yet delivered. Brenda fills this at month end."}
+      {mode==="realizada"?"⚠️ Manual Adj. column: use this for retroactive corrections (e.g. expenses paid in the wrong month). These are saved separately and survive CSV re-imports.":"💡 Eco Adj. column: for jobs sold but not delivered, ask Junior for the deals, sum the amount, and estimate the costs for subs and materials. Fill in at month end."}
     </div>
     <ManagementNotes data={data} setData={setData} month={month} year={year}/>
   </div>;
@@ -1093,12 +1093,19 @@ function CashFlowTab({data,setData,month,year}) {
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function OperationalDashboard({data,month,year}) {
+  const [dreType,setDreType]=useState("realizada");
   const mk=`${year}-${month}`;
   const baseData=data.dreData?.[mk]||HIST_R[mk]||{};
   const adjData=data.dreAdj?.[mk]||{};
   const realizedRaw={...baseData};
   DRE_INPUT_KEYS.forEach(k=>{realizedRaw[k]=fmtNum(baseData[k])+fmtNum(adjData[k]);});
-  const computed=computeDRE(realizedRaw);
+  // Apply economic adjustments if in eco mode
+  const dreEcoExtra=data.dreEcoExtra?.[mk]||{};
+  const displayData={...realizedRaw};
+  if(dreType==="economica") {
+    DRE_INPUT_KEYS.forEach(k=>{displayData[k]=fmtNum(realizedRaw[k])+fmtNum(dreEcoExtra[k]);});
+  }
+  const computed=computeDRE(displayData);
   const receivables=(data.receivables||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
   const contractors=(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
   const pendingRec=receivables.filter(r=>r.status!=="paid").reduce((s,r)=>s+fmtNum(r.remaining),0);
@@ -1108,8 +1115,13 @@ function OperationalDashboard({data,month,year}) {
   const margin=computed.receita_liquida>0?Math.round(computed.margem/computed.receita_liquida*100):0;
   return <div>
     <RolloverBanner month={month} year={year}/>
-    <div className="ptitle" style={{marginBottom:4}}>Dashboard</div>
-    <div className="psub">{MONTHS_EN[month]} {year}</div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+      <div className="ptitle" style={{marginBottom:0}}>Dashboard</div>
+      <div style={{display:"flex",gap:4,background:"var(--bg3)",padding:3,borderRadius:8}}>
+        {["realizada","economica"].map(t=><button key={t} style={{background:dreType===t?"#1B7A8A":"transparent",color:dreType===t?"white":C.text2,border:"none",padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans'",fontWeight:500}} onClick={()=>setDreType(t)}>{t==="realizada"?"Realizada":"Econômica"}</button>)}
+      </div>
+    </div>
+    <div className="psub">{MONTHS_EN[month]} {year} — {dreType==="realizada"?"Realizada":"Econômica"}</div>
     <div className="g4">
       <div className="stat"><div className="sl">Net Revenue</div><div className="sv" style={{color:C.blue}}>{fmt(computed.receita_liquida)}</div></div>
       <div className="stat"><div className="sl">Contribution Margin</div><div className="sv" style={{color:C.green}}>{fmt(computed.margem)}</div><div className="ss">{margin}%</div></div>
@@ -1143,9 +1155,9 @@ function OperationalDashboard({data,month,year}) {
         <div className="ctitle">DRE Summary</div>
         {[
           {label:"Net Revenue",value:computed.receita_liquida},
-          {label:"Total COGS",value:-(fmtNum(realizedRaw.cogs_materials)+fmtNum(realizedRaw.cogs_subs)+fmtNum(realizedRaw.cogs_fuel)+fmtNum(realizedRaw.cogs_genn))},
+          {label:"Total COGS",value:-(fmtNum(displayData.cogs_materials)+fmtNum(displayData.cogs_subs)+fmtNum(displayData.cogs_fuel)+fmtNum(displayData.cogs_genn))},
           {label:"Contribution Margin",value:computed.margem},
-          {label:"Fixed Expenses",value:-(fmtNum(realizedRaw.mkt)+fmtNum(realizedRaw.sal_adm)+fmtNum(realizedRaw.sal_ops)+fmtNum(realizedRaw.custos_fixos)+fmtNum(realizedRaw.softwares)+fmtNum(realizedRaw.contabilidade))},
+          {label:"Fixed Expenses",value:-(fmtNum(displayData.mkt)+fmtNum(displayData.sal_adm)+fmtNum(displayData.sal_ops)+fmtNum(displayData.custos_fixos)+fmtNum(displayData.estoque)+fmtNum(displayData.softwares)+fmtNum(displayData.contabilidade))},
           {label:"Operating Income",value:computed.lucro_op},
           {label:"Net Income (pre-tax)",value:computed.lucro_ir},
         ].map(({label,value})=><div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--bdr)"}}>
@@ -1182,7 +1194,7 @@ function ManagementNotes({data,setData,month,year}) {
 
 // ─── MONTH-END CLOSE TAB ─────────────────────────────────────────────────────
 const CHECKLIST_ITEMS = [
-  {id:"payments_csv", label:"Import Payments CSV from Jobber", hint:"Jobber → Reports → Jobber Payments → Transactions → Filter: This Month"},
+  {id:"payments_csv", label:"Import Payments CSV from Jobber", hint:"Jobber → Reports → Financial Reports (Transaction List) → Paid → Filter: This Month"},
   {id:"expenses_csv", label:"Import Expenses CSV from Jobber", hint:"Jobber → Reports → Expense Reports → Expenses → Filter: This Month"},
   {id:"receivables_review", label:"Review open receivables — confirm paid/pending", hint:"Check Receivables tab. Mark any received payments."},
   {id:"subs_review", label:"Review subcontractor payments — confirm all paid", hint:"Check Subcontractors tab. Confirm all payments were made."},
@@ -1272,7 +1284,7 @@ function AnalyticsDashboard({data,month,year}) {
     const mp=c.receita_liquida>0?Math.round(c.margem/c.receita_liquida*100):0;
     const sp=c.receita_liquida>0?Math.round(fmtNum(d.cogs_subs)/c.receita_liquida*100):0;
     const cogs=fmtNum(d.cogs_materials)+fmtNum(d.cogs_subs)+fmtNum(d.cogs_fuel)+fmtNum(d.cogs_genn);
-    const custos=fmtNum(d.mkt)+fmtNum(d.sal_adm)+fmtNum(d.sal_ops)+fmtNum(d.custos_fixos)+fmtNum(d.softwares)+fmtNum(d.contabilidade);
+    const custos=fmtNum(d.mkt)+fmtNum(d.sal_adm)+fmtNum(d.sal_ops)+fmtNum(d.custos_fixos)+fmtNum(d.estoque)+fmtNum(d.softwares)+fmtNum(d.contabilidade);
     return {label,receita:Math.round(c.receita_liquida),margem:Math.round(c.margem),lucro:Math.round(c.lucro_ir),cogs:Math.round(cogs),mkt:Math.round(fmtNum(d.mkt)),subs:Math.round(fmtNum(d.cogs_subs)),custos:Math.round(custos),margem_pct:mp,subs_pct:sp};
   }),[months,data,dreType]);
   const discrepancias=useMemo(()=>{
