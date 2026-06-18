@@ -208,15 +208,37 @@ function getDREForMonth(data,year,month,type){
   return merged;
 }
 
+// Full CSV parser that respects quoted fields containing newlines (Jobber exports can have \n inside quoted cells)
+function parseCSVFull(text){
+  const rows=[];
+  let row=[],cur="",inQ=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQ){
+      if(ch==='"'){
+        if(text[i+1]==='"'){cur+='"';i++;} // escaped quote
+        else inQ=false;
+      } else cur+=ch;
+    } else {
+      if(ch==='"') inQ=true;
+      else if(ch===','){row.push(cur);cur="";}
+      else if(ch==='\r'){/* skip */}
+      else if(ch==='\n'){row.push(cur);cur="";rows.push(row);row=[];}
+      else cur+=ch;
+    }
+  }
+  if(cur!==""||row.length>0){row.push(cur);rows.push(row);}
+  return rows.map(r=>r.map(c=>c.trim()));
+}
+
 function parseJobberCSV(text){
-  const allLines=text.split(/\r?\n/);
-  const hi=allLines.findIndex(l=>l.toLowerCase().includes("item name")||l.toLowerCase().includes("client name,date"));
+  const allRows=parseCSVFull(text);
+  const hi=allRows.findIndex(r=>r.some(c=>c.toLowerCase()==="item name")||r.some(c=>c.toLowerCase()==="client name"));
   if(hi===-1) return null;
-  const lines=allLines.slice(hi).filter(l=>l.trim());
-  if(lines.length<2) return null;
-  const pl=line=>{const cols=[];let cur="",inQ=false;for(const ch of line){if(ch==='"')inQ=!inQ;else if(ch===','&&!inQ){cols.push(cur.trim());cur="";}else cur+=ch;}cols.push(cur.trim());return cols.map(c=>c.replace(/"/g,"").trim());};
-  const headers=pl(lines[0]).map(h=>h.toLowerCase());
-  const rows=lines.slice(1).filter(l=>l.trim()&&!l.toLowerCase().startsWith("report totals")).map(line=>{const cols=pl(line);const obj={};headers.forEach((h,i)=>{obj[h]=cols[i]||"";});return obj;});
+  const dataRows=allRows.slice(hi).filter(r=>r.length>1||r[0]!=="");
+  if(dataRows.length<2) return null;
+  const headers=dataRows[0].map(h=>h.toLowerCase());
+  const rows=dataRows.slice(1).filter(r=>r.length>0&&r[0]&&!r[0].toLowerCase().startsWith("report totals")).map(cols=>{const obj={};headers.forEach((h,i)=>{obj[h]=cols[i]||"";});return obj;});
   return {headers,rows};
 }
 
