@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+t { useState, useMemo, useCallback, useEffect } from "react";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, onSnapshot, collection } from "firebase/firestore";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine, Area, ComposedChart } from "recharts";
@@ -195,7 +195,9 @@ function getDREForMonth(data,year,month,type){
   const base=getBaseForMonth(data,year,month);
   if(type==="eco"){
     if(!base) return null;
-    const extra=data.dreEcoExtra?.[key]||{};
+    // Extra economic adjustments default to HIST_E delta (if no manual override saved yet)
+    const histEcoDelta=HIST_E[key]?Object.fromEntries(DRE_INPUT_KEYS.map(k=>[k,Math.max(0,(HIST_E[key]?.[k]||0)-(HIST_R[key]?.[k]||0))])):{};
+    const extra=data.dreEcoExtra?.[key]||histEcoDelta;
     const merged={...base};
     DRE_INPUT_KEYS.forEach(k=>{merged[k]=fmtNum(base[k])+fmtNum(extra[k]);});
     return merged;
@@ -410,6 +412,19 @@ input::placeholder{color:var(--t2);}
 }
 
 /* ── RESPONSIVE: MOBILE (iPhone etc) ──────────────────────── */
+/* Mobile item cards: hidden by default (desktop shows table) */
+.mobile-cards{display:none;}
+.mobile-item-card{position:relative;background:var(--bg1);border:1px solid var(--bdr);border-radius:13px;padding:14px;margin-bottom:10px;overflow:hidden;}
+.mobile-item-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--grad-jn);opacity:0.5;}
+.mic-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;}
+.mic-title{font-size:14px;font-weight:700;color:var(--t1);}
+.mic-sub{font-size:11px;color:var(--t2);margin-top:1px;}
+.mic-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-bottom:12px;}
+.mic-field{display:flex;flex-direction:column;gap:2px;font-size:12.5px;}
+.mic-flabel{font-size:9.5px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
+.mic-actions{display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--bdr);padding-top:10px;}
+.mic-actions .btn{flex:1;text-align:center;justify-content:center;}
+
 @media (max-width: 640px){
   .topbar{height:auto;min-height:52px;padding:10px 14px;flex-wrap:wrap;gap:8px;}
   .logo{font-size:13px;order:1;}
@@ -427,14 +442,10 @@ input::placeholder{color:var(--t2);}
   .stat{padding:12px;}
   .sv{font-size:17px;}
   .modal{padding:18px;border-radius:14px;}
-  table{font-size:12px;}
-  th{padding:7px 8px;font-size:9.5px;}
-  td{padding:9px 8px;}
   .btn{padding:8px 13px;font-size:12.5px;}
-  /* Make wide tables horizontally scrollable on mobile, card keeps rounded corners */
-  .card:has(table){overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .card table{min-width:640px;}
-  .acts{flex-wrap:nowrap;}
+  /* On mobile: hide desktop table, show stacked cards instead */
+  .desktop-table{display:none;}
+  .mobile-cards{display:block;}
 }
 @media (max-width: 380px){
   .stabs .stab{padding:5px 8px;font-size:11px;}
@@ -647,6 +658,25 @@ function ModalEditReceivable({item,onSave,onClose}) {
 }
 
 // ─── RECEIVABLES TAB ──────────────────────────────────────────────────────────
+
+// ─── MOBILE CARD ROW (used for narrow screens) ────────────────────────────────
+function MobileItemCard({title,subtitle,tag,fields,statusLabel,statusClass,actions}) {
+  return <div className="mobile-item-card">
+    <div className="mic-head">
+      <div>
+        <div className="mic-title">{title}</div>
+        {subtitle&&<div className="mic-sub">{subtitle}</div>}
+        {tag}
+      </div>
+      <span className={`badge ${statusClass}`}>{statusLabel}</span>
+    </div>
+    <div className="mic-fields">
+      {fields.map((f,i)=><div key={i} className="mic-field"><span className="mic-flabel">{f.label}</span><span className={f.cls||""} style={f.style}>{f.value}</span></div>)}
+    </div>
+    <div className="mic-actions">{actions}</div>
+  </div>;
+}
+
 function ReceivablesTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editItem,setEditItem]=useState(null);
@@ -693,8 +723,8 @@ function ReceivablesTab({data,setData,month,year}) {
     <div style={{display:"flex",gap:8,marginBottom:16}}>
       {["all","pending","paid","masssave"].map(f=><button key={f} className={`btn bsm ${filter===f?"bp":"bgg"}`} onClick={()=>setFilter(f)}>{f==="all"?"All":f==="pending"?"Pending":f==="paid"?"Paid":"Mass Save"}</button>)}
     </div>
-    <div className="card" style={{padding:0,overflow:"hidden"}}>
-      {items.length===0?<div className="empty"><div className="ei">📋</div>No receivables this month</div>:(
+    {items.length===0?<div className="card empty"><div className="ei">📋</div>No receivables this month</div>:(<>
+      <div className="card desktop-table" style={{padding:0,overflow:"hidden"}}>
         <table>
           <thead><tr><th>Client</th><th>Job / Invoice #</th><th>Invoice Date</th><th>Total</th><th>Deposited</th><th>Balance</th><th>Aging</th><th>Status</th><th></th></tr></thead>
           <tbody>{items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <tr key={r.id}>
@@ -710,8 +740,25 @@ function ReceivablesTab({data,setData,month,year}) {
           </tr>;})}
           </tbody>
         </table>
-      )}
-    </div>
+      </div>
+      <div className="mobile-cards">
+        {items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <MobileItemCard key={r.id}
+          title={r.client}
+          tag={r.massSave&&<span className="tag" style={{marginTop:4}}>Mass Save</span>}
+          statusLabel={r.status==="paid"?"Paid":"Pending"}
+          statusClass={r.status==="paid"?"bg":"bam"}
+          fields={[
+            {label:"Job/Invoice",value:r.job||"—"},
+            {label:"Invoice Date",value:r.billedDate||"—"},
+            {label:"Total",value:fmt(r.total),cls:"am"},
+            {label:"Deposited",value:fmt(r.deposited),cls:"ap"},
+            {label:"Balance",value:fmt(r.remaining),cls:fmtNum(r.remaining)>0?"an":"ap"},
+            {label:"Aging",value:r.status==="paid"?"—":r.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
+          ]}
+          actions={<>{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(r)}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕ Delete</button></>}
+        />;})}
+      </div>
+    </>)}
     {showAdd&&<ModalReceivable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
     {editItem&&<ModalEditReceivable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onClose={()=>setEditItem(null)}/>}
   </div>;
@@ -747,8 +794,8 @@ function ContractorsTab({data,setData,month,year}) {
       <div className="stat"><div className="sl">Month Total</div><div className="sv" style={{color:C.blue}}>{fmt(pending+paid)}</div></div>
       <div className="stat"><div className="sl">Overdue</div><div className="sv" style={{color:overdue>0?C.red:C.text2}}>{overdue}</div><div className="ss">unpaid</div></div>
     </div>
-    <div className="card" style={{padding:0,overflow:"hidden"}}>
-      {items.length===0?<div className="empty"><div className="ei">🔧</div>No payments this month</div>:(
+    {items.length===0?<div className="card empty"><div className="ei">🔧</div>No payments this month</div>:(<>
+      <div className="card desktop-table" style={{padding:0,overflow:"hidden"}}>
         <table>
           <thead><tr><th>Subcontractor</th><th>Job / Invoice #</th><th>Amount</th><th>Date</th><th>Aging</th><th>Status</th><th></th></tr></thead>
           <tbody>{items.sort((a,b)=>a.status==="paid"?1:-1).map(c=>{const ag=agingLabel(agingDays(c.dueDate));return <tr key={c.id}>
@@ -762,8 +809,22 @@ function ContractorsTab({data,setData,month,year}) {
           </tr>;})}
           </tbody>
         </table>
-      )}
-    </div>
+      </div>
+      <div className="mobile-cards">
+        {items.sort((a,b)=>a.status==="paid"?1:-1).map(c=>{const ag=agingLabel(agingDays(c.dueDate));return <MobileItemCard key={c.id}
+          title={c.name}
+          statusLabel={c.status==="paid"?"Paid":"Pending"}
+          statusClass={c.status==="paid"?"bg":"br"}
+          fields={[
+            {label:"Job/Invoice",value:c.job||"—"},
+            {label:"Amount",value:fmt(c.amount),cls:"am"},
+            {label:"Date",value:c.dueDate||"—"},
+            {label:"Aging",value:c.status==="paid"?"—":c.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
+          ]}
+          actions={<>{c.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(c.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(c)}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(c.id)}>✕ Delete</button></>}
+        />;})}
+      </div>
+    </>)}
     {showAdd&&<ModalContractor onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
     {editItem&&<div className="overlay" onClick={()=>setEditItem(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
       <div className="mtitle">Edit — {editItem.name}</div>
@@ -813,8 +874,8 @@ function PayablesTab({data,setData,month,year}) {
       <div className="stat"><div className="sl">Month Total</div><div className="sv" style={{color:C.blue}}>{fmt(pending+paid)}</div></div>
       <div className="stat"><div className="sl">Overdue</div><div className="sv" style={{color:overdue>0?C.red:C.text2}}>{overdue}</div><div className="ss">unpaid</div></div>
     </div>
-    <div className="card" style={{padding:0,overflow:"hidden"}}>
-      {items.length===0?<div className="empty"><div className="ei">🧾</div>No payables this month</div>:(
+    {items.length===0?<div className="card empty"><div className="ei">🧾</div>No payables this month</div>:(<>
+      <div className="card desktop-table" style={{padding:0,overflow:"hidden"}}>
         <table>
           <thead><tr><th>Description</th><th>Vendor</th><th>Category</th><th>Amount</th><th>Due Date</th><th>Aging</th><th>Status</th><th></th></tr></thead>
           <tbody>{items.sort((a,b)=>a.status==="paid"?1:-1).map(p=>{const ag=p.status==="paid"?{label:"Paid",color:C.green}:agingLabel(agingDays(p.dueDate));return <tr key={p.id} style={{opacity:p.status==="paid"?0.6:1}}>
@@ -829,8 +890,23 @@ function PayablesTab({data,setData,month,year}) {
           </tr>;})}
           </tbody>
         </table>
-      )}
-    </div>
+      </div>
+      <div className="mobile-cards">
+        {items.sort((a,b)=>a.status==="paid"?1:-1).map(p=>{const ag=p.status==="paid"?{label:"Paid",color:C.green}:agingLabel(agingDays(p.dueDate));return <MobileItemCard key={p.id}
+          title={p.description}
+          statusLabel={p.status==="paid"?"Paid":"Pending"}
+          statusClass={p.status==="paid"?"bg":"br"}
+          fields={[
+            {label:"Vendor",value:p.vendor||"—"},
+            {label:"Category",value:DRE_LABELS[p.category]?.split(" ").slice(0,2).join(" ")||p.category},
+            {label:"Amount",value:fmt(p.amount),cls:"am"},
+            {label:"Due Date",value:p.dueDate||"—"},
+            {label:"Aging",value:p.status==="paid"?"—":p.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
+          ]}
+          actions={<>{p.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(p.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(p)}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(p.id)}>✕ Delete</button></>}
+        />;})}
+      </div>
+    </>)}
     {showAdd&&<ModalPayable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
     {editItem&&<div className="overlay" onClick={()=>setEditItem(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
       <div className="mtitle">Edit — {editItem.description}</div>
