@@ -187,7 +187,14 @@ function computeDRE(d){
 
 function getBaseForMonth(data,year,month){
   const key=`${year}-${month}`;
-  return data.dreData?.[key]||HIST_R[key]||null;
+  const fromFirebase=data.dreData?.[key];
+  const fromHist=HIST_R[key];
+  const base=fromFirebase||fromHist||null;
+  // Treat a month as "no DRE data yet" if revenue is zero/missing — prevents partial/test
+  // documents (e.g. only a stray eco adjustment field) from polluting Analytics totals.
+  if(!base) return null;
+  if(fmtNum(base.rev_operacional)<=0 && fmtNum(base.rev_genn)<=0) return null;
+  return base;
 }
 
 function getDREForMonth(data,year,month,type){
@@ -290,14 +297,14 @@ const css=`
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:'DM Sans',sans-serif;background:#0b0b0d;color:#f5f5f5;min-height:100vh;}
 :root{--r:#E8392A;--b:#4ABCD4;--o:#E8622A;--y:#F5A623;--t:#1B7A8A;--g:#34d399;--am:#fbbf24;--re:#f87171;--bg1:#141416;--bg2:#1c1c1f;--bg3:#26262a;--bdr:rgba(255,255,255,0.08);--t1:#f5f5f5;--t2:#9a9aa0;--mono:'DM Mono',monospace;
-  --grad-jn:linear-gradient(110deg,#E8392A 0%,#E8622A 38%,#F5A623 68%,#4ABCD4 100%);
+  --grad-jn:linear-gradient(100deg,#E8392A 0%,#E8622A 33%,#F5A623 66%,#4ABCD4 100%);
   --grad-jn-soft:linear-gradient(110deg,rgba(232,57,42,0.14) 0%,rgba(232,98,42,0.10) 38%,rgba(245,166,35,0.08) 68%,rgba(74,188,212,0.12) 100%);
 }
 .app{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;}
 
 /* ── TOPBAR ───────────────────────────────────────────────── */
 .topbar{position:relative;background:var(--bg1);border-bottom:1px solid var(--bdr);padding:0 20px;display:flex;align-items:center;gap:10px;height:56px;position:sticky;top:0;z-index:100;overflow:hidden;}
-.topbar::before{content:"";position:absolute;inset:0;background:var(--grad-jn);opacity:0.10;pointer-events:none;}
+.topbar::before{content:"";position:absolute;inset:0;background:var(--grad-jn);opacity:0.08;pointer-events:none;}
 .topbar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--grad-jn);}
 .logo{font-size:14px;font-weight:700;color:var(--t1);white-space:nowrap;flex-shrink:0;position:relative;letter-spacing:.2px;}
 .logo span{background:var(--grad-jn);-webkit-background-clip:text;background-clip:text;color:transparent;}
@@ -1483,18 +1490,20 @@ function AnalyticsDashboard({data,month,year}) {
         {["realizada","economica"].map(t=><button key={t} style={{background:dreType===t?"#1B7A8A":"transparent",color:dreType===t?"white":C.text2,border:"none",padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans'",fontWeight:500}} onClick={()=>setDreType(t)}>{t==="realizada"?"Realizada":"Econômica"}</button>)}
       </div>
     </div>
-    <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16,flexWrap:"wrap",background:"var(--bg2)",padding:"12px 16px",borderRadius:10}}>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <span style={{fontSize:12,color:C.text2}}>From:</span>
-        <select className="msel" value={fromMonth} onChange={e=>setFromMonth(Number(e.target.value))}>{MONTHS_EN.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
-        <select className="msel" value={fromYear} onChange={e=>setFromYear(Number(e.target.value))}>{[2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
+    <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16,background:"var(--bg2)",padding:"14px 16px",borderRadius:10,border:"1px solid var(--bdr)"}}>
+      <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:C.text2,fontWeight:600,minWidth:36}}>From:</span>
+          <select className="msel" value={fromMonth} onChange={e=>setFromMonth(Number(e.target.value))}>{MONTHS_EN.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+          <select className="msel" value={fromYear} onChange={e=>setFromYear(Number(e.target.value))}>{[2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:C.text2,fontWeight:600,minWidth:24}}>To:</span>
+          <select className="msel" value={toMonth} onChange={e=>setToMonth(Number(e.target.value))}>{MONTHS_EN.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+          <select className="msel" value={toYear} onChange={e=>setToYear(Number(e.target.value))}>{[2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
+        </div>
       </div>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <span style={{fontSize:12,color:C.text2}}>To:</span>
-        <select className="msel" value={toMonth} onChange={e=>setToMonth(Number(e.target.value))}>{MONTHS_EN.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
-        <select className="msel" value={toYear} onChange={e=>setToYear(Number(e.target.value))}>{[2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
-      </div>
-      <span style={{fontSize:12,color:C.text2}}>{months.length} {months.length===1?"month":"months"} selected</span>
+      <span style={{fontSize:11.5,color:C.text2}}>{months.length} {months.length===1?"month":"months"} selected</span>
     </div>
     <div className="g4" style={{marginBottom:16}}>
       <div className="stat"><div className="sl">Total Revenue</div><div className="sv" style={{color:C.blue}}>{fmtK(totalReceita)}</div><div className="ss">{months.length} months</div></div>
