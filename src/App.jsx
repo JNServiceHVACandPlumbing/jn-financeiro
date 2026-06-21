@@ -176,9 +176,18 @@ function agingLabel(days){
   return {label:`${days}d overdue`,color:"#991b1b"};
 }
 
-function computeDRE(d){
+// monthKey is optional "YYYY-M" string. From May 2026 (2026-4) onward, rev_genn is informational
+// only (already included in rev_operacional from the CSV) and must NOT be added to revenue.
+// Jan-Apr 2026 historical closed months keep the old formula (rev_genn was additive back then).
+function isGennInformationalOnly(monthKey){
+  if(!monthKey) return false;
+  const [y,m]=monthKey.split("-").map(Number);
+  return y>2026 || (y===2026 && m>=4); // 2026-4 = May 2026 onward
+}
+function computeDRE(d,monthKey){
   const v=k=>fmtNum(d[k]);
-  const receita_liquida=v("rev_operacional")+v("rev_genn")-v("impostos");
+  const gennIsInfo=isGennInformationalOnly(monthKey);
+  const receita_liquida=v("rev_operacional")+(gennIsInfo?0:v("rev_genn"))-v("impostos");
   const margem=receita_liquida-v("cogs_materials")-v("cogs_genn")-v("cogs_subs")-v("cogs_fuel");
   const lucro_op=margem-v("mkt")-v("sal_ops")-v("sal_adm")-v("custos_fixos")-v("estoque")-v("softwares")-v("contabilidade");
   const lucro_ir=lucro_op-v("desp_gerais")-v("taxas_bank");
@@ -956,12 +965,12 @@ function DRETab({data,setData,month,year}) {
   // Compute realized with adjustments
   const realizedRaw={...baseData};
   DRE_INPUT_KEYS.forEach(k=>{realizedRaw[k]=fmtNum(baseData[k])+fmtNum(adjData[k]);});
-  const realized=computeDRE(realizedRaw);
+  const realized=computeDRE(realizedRaw,mk);
 
   // Compute economic
   const ecoIn={...realizedRaw};
   DRE_INPUT_KEYS.forEach(k=>{ecoIn[k]=fmtNum(realizedRaw[k])+fmtNum(dreEco[k]);});
-  const economic=computeDRE(ecoIn);
+  const economic=computeDRE(ecoIn,mk);
 
   const upload=(e,type)=>{
     const file=e.target.files?.[0];if(!file) return;
@@ -997,7 +1006,8 @@ function DRETab({data,setData,month,year}) {
       — Expenses: <code>Jobber → Reports → Expense Reports → Expenses → Filter: This Month</code><br/><br/>
       Upload both CSVs below. The <strong>Realizada</strong> tab will populate automatically.<br/>
       Use <strong>Manual Adj.</strong> column to make retroactive corrections (e.g. a payment made in July that belongs to June costs) — these adjustments are saved separately and will NOT be overwritten when you re-upload the CSV.<br/>
-      The <strong>Econômica</strong> tab shows Realizada + your adjustments based on Pipedrive data for undelivered jobs. Fill in the blue columns at month end.
+      The <strong>Econômica</strong> tab shows Realizada + your adjustments based on Pipedrive data for undelivered jobs. Fill in the blue columns at month end.<br/><br/>
+      <strong>Receita Recorrente GENN:</strong> starting May 2026, this line is informational only — it does NOT add to total revenue. It's already included in the Receita Operacional total from the CSV; this row just shows how much of that total came from GENN.
     </div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
       <div className="ptitle">DRE — {MONTHS_EN[month]} {year}</div>
@@ -1122,7 +1132,7 @@ function CashFlowTab({data,setData,month,year}) {
   const todayBal=chartData.find(d=>d.dayKey===todayStr)?.balance||opening;
 
   // DRE Estimate computed
-  const estimateComputed=computeDRE(dreEstimate);
+  const estimateComputed=computeDRE(dreEstimate,mk);
   const setEst=(k,v)=>setData(d=>({...d,dreEstimate:{...(d.dreEstimate||{}),[mk]:{...(d.dreEstimate?.[mk]||{}),[k]:v}}}));
   const clearEstimate=()=>setData(d=>({...d,dreEstimate:{...(d.dreEstimate||{}),[mk]:{}}}));
 
@@ -1254,7 +1264,7 @@ function CashFlowTab({data,setData,month,year}) {
           <div style={{padding:"8px 12px",fontSize:11,color:"#F5A623",textTransform:"uppercase",letterSpacing:".5px",textAlign:"right"}}>Estimate</div>
         </div>
         {DRE_STRUCTURE.map(({key,type})=>{
-          const realized2=computeDRE(data.dreData?.[mk]||HIST_R[mk]||{});
+          const realized2=computeDRE(data.dreData?.[mk]||HIST_R[mk]||{},mk);
           const rv=realized2[key];const ev=estimateComputed[key];
           const isCalc=type==="calc";
           if(isCalc) return <div key={key} style={{display:"grid",gridTemplateColumns:"1fr 140px 140px",background:"rgba(232,57,42,0.05)",borderTop:"1px solid rgba(232,57,42,0.15)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
@@ -1288,7 +1298,7 @@ function OperationalDashboard({data,month,year}) {
   if(dreType==="economica") {
     DRE_INPUT_KEYS.forEach(k=>{displayData[k]=fmtNum(realizedRaw[k])+fmtNum(dreEcoExtra[k]);});
   }
-  const computed=computeDRE(displayData);
+  const computed=computeDRE(displayData,mk);
   const receivables=(data.receivables||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
   const contractors=(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
   const pendingRec=receivables.filter(r=>r.status!=="paid").reduce((s,r)=>s+fmtNum(r.remaining),0);
@@ -1463,7 +1473,7 @@ function AnalyticsDashboard({data,month,year}) {
   const seriesData=useMemo(()=>months.map(({year:y,month:m,label})=>{
     const d=getDREForMonth(data,y,m,dreType==="economica"?"eco":"real");
     if(!d) return {label,receita:0,margem:0,lucro:0,cogs:0,mkt:0,subs:0,custos:0,margem_pct:0,subs_pct:0};
-    const c=computeDRE(d);
+    const c=computeDRE(d,`${y}-${m}`);
     const mp=c.receita_liquida>0?Math.round(c.margem/c.receita_liquida*100):0;
     const sp=c.receita_liquida>0?Math.round(fmtNum(d.cogs_subs)/c.receita_liquida*100):0;
     const cogs=fmtNum(d.cogs_materials)+fmtNum(d.cogs_subs)+fmtNum(d.cogs_fuel)+fmtNum(d.cogs_genn);
@@ -1477,7 +1487,7 @@ function AnalyticsDashboard({data,month,year}) {
     const labels={receita:"Revenue",margem:"Contribution Margin",lucro:"Net Income",cogs:"Total COGS",mkt:"Marketing",subs:"Subcontractors",custos:"Fixed Expenses"};
     return keys.map(k=>{const diff=prev[k]!==0?Math.round((curr[k]-prev[k])/Math.abs(prev[k])*100):0;return{key:k,label:labels[k],curr:curr[k],prev:prev[k],diff};}).filter(d=>Math.abs(d.diff)>=10).sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
   },[seriesData]);
-  const cumData=useMemo(()=>{let cR=0,cM=0,cL=0;return months.map(({year:y,month:m,label})=>{const d=getDREForMonth(data,y,m,dreType==="economica"?"eco":"real");if(!d) return {label,cumReceita:cR,cumMargem:cM,cumLucro:cL};const c=computeDRE(d);cR+=c.receita_liquida;cM+=c.margem;cL+=c.lucro_ir;return {label,cumReceita:Math.round(cR),cumMargem:Math.round(cM),cumLucro:Math.round(cL)};});},[months,data,dreType]);
+  const cumData=useMemo(()=>{let cR=0,cM=0,cL=0;return months.map(({year:y,month:m,label})=>{const d=getDREForMonth(data,y,m,dreType==="economica"?"eco":"real");if(!d) return {label,cumReceita:cR,cumMargem:cM,cumLucro:cL};const c=computeDRE(d,`${y}-${m}`);cR+=c.receita_liquida;cM+=c.margem;cL+=c.lucro_ir;return {label,cumReceita:Math.round(cR),cumMargem:Math.round(cM),cumLucro:Math.round(cL)};});},[months,data,dreType]);
   const totalReceita=seriesData.reduce((s,d)=>s+d.receita,0);
   const totalMargem=seriesData.reduce((s,d)=>s+d.margem,0);
   const totalLucro=seriesData.reduce((s,d)=>s+d.lucro,0);
