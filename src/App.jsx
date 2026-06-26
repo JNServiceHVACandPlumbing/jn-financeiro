@@ -783,7 +783,11 @@ function ReceivablesTab({data,setData,month,year}) {
   const totalDep=items.reduce((s,r)=>s+fmtNum(r.deposited),0);
   const totalRem=items.reduce((s,r)=>s+fmtNum(r.remaining),0);
   const overdue=items.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0).length;
-  const markPaid=id=>setData(d=>({...d,receivables:d.receivables.map(r=>r.id===id?{...r,status:"paid",deposited:r.total,remaining:0}:r)}));
+  const markPaid=id=>{
+    const rec=(data.receivables||[]).find(r=>r.id===id);
+    if(rec){const updated={...rec,status:"paid",deposited:rec.total,remaining:0};fbSet("receivables",id,updated);}
+    setData(d=>({...d,receivables:d.receivables.map(r=>r.id===id?{...r,status:"paid",deposited:r.total,remaining:0}:r)}));
+  };
   const del=id=>{if(!window.confirm("Are you sure you want to delete this receivable? This cannot be undone.")) return;
     // Mark historical items as deleted in Firebase too
     if(id.startsWith("hist_")) fbSet("receivables",id,{id,_deleted:true});
@@ -944,7 +948,11 @@ function ContractorsTab({data,setData,month,year}) {
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
-  const markPaid=id=>setData(d=>({...d,contractors:d.contractors.map(c=>c.id===id?{...c,status:"paid",paidAt:new Date().toISOString()}:c)}));
+  const markPaid=id=>{
+    const con=(data.contractors||[]).find(c=>c.id===id);
+    if(con){const updated={...con,status:"paid",paidAt:new Date().toISOString()};fbSet("contractors",id,updated);}
+    setData(d=>({...d,contractors:d.contractors.map(c=>c.id===id?{...c,status:"paid",paidAt:new Date().toISOString()}:c)}));
+  };
   const del=id=>{if(!window.confirm("Are you sure you want to delete this payment?")) return;setData(d=>({...d,contractors:d.contractors.filter(c=>c.id!==id)}));};
   const add=item=>setData(d=>({...d,contractors:[...(d.contractors||[]),item]}));
   const update=item=>{fbSet("contractors",item.id,item);setData(d=>({...d,contractors:d.contractors.map(c=>c.id===item.id?{...c,...item}:c)}));};
@@ -1010,7 +1018,11 @@ function PayablesTab({data,setData,month,year}) {
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
-  const markPaid=id=>setData(d=>({...d,payables:d.payables.map(p=>p.id===id?{...p,status:"paid",paidAt:new Date().toISOString()}:p)}));
+  const markPaid=id=>{
+    const pay=(data.payables||[]).find(p=>p.id===id);
+    if(pay){const updated={...pay,status:"paid",paidAt:new Date().toISOString()};fbSet("payables",id,updated);}
+    setData(d=>({...d,payables:d.payables.map(p=>p.id===id?{...p,status:"paid",paidAt:new Date().toISOString()}:p)}));
+  };
   const del=id=>{if(!window.confirm("Are you sure you want to delete this payable?")) return;setData(d=>({...d,payables:d.payables.filter(p=>p.id!==id)}));};
   const add=item=>setData(d=>({...d,payables:[...(d.payables||[]),item]}));
   const update=item=>{fbSet("payables",item.id,item);setData(d=>({...d,payables:d.payables.map(p=>p.id===item.id?{...p,...item}:p)}));};
