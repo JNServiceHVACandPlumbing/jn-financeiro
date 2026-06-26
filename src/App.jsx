@@ -781,10 +781,108 @@ function ReceivablesTab({data,setData,month,year}) {
 }
 
 // ─── CONTRACTORS TAB ──────────────────────────────────────────────────────────
+
+// ─── MODAL EDIT CONTRACTOR ───────────────────────────────────────────────────
+function ModalEditContractor({item,onSave,onAdd,onClose}) {
+  const [f,setF]=useState({...item,_recurMonths:1});
+  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  const rm=f._recurMonths||1;
+  return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
+    <div className="mtitle">Edit — {item.name}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div className="fg"><div className="fl">Name</div><input value={f.name} onChange={e=>s("name",e.target.value)}/></div>
+      <div className="fg"><div className="fl">Job / Invoice #</div><input value={f.job||""} onChange={e=>s("job",e.target.value)} placeholder="e.g. HVAC install or Invoice #1234"/></div>
+      <div className="g2">
+        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",e.target.value)}/></div>
+        <div className="fg"><div className="fl">Payment Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
+      </div>
+      <div className="fg"><div className="fl">Repeat for how many months?</div>
+        <select value={rm} onChange={e=>s("_recurMonths",Number(e.target.value))}>
+          {[1,2,3,4,5,6,12].map(n=><option key={n} value={n}>{n===1?"This month only":n===12?"12 months (1 year)":n+" months"}</option>)}
+        </select>
+      </div>
+      {rm>1&&<div className="info">Will update this item + create {rm-1} new copies in the following months.</div>}
+      <div className="fg"><div className="fl">Status</div>
+        <select value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
+      </div>
+      <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
+    </div>
+    <div className="mact">
+      <button className="btn bgg" onClick={onClose}>Cancel</button>
+      <button className="btn bp" onClick={()=>{
+        const {_recurMonths,...clean}=f;
+        onSave(clean);
+        if(rm>1&&f.dueDate){
+          const groupId=f.groupId||Date.now().toString();
+          for(let i=1;i<rm;i++){
+            try{
+              const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);
+              const dd=d.toISOString().split("T")[0];
+              onAdd({...clean,id:Date.now().toString()+"c"+i,dueDate:dd,createdAt:new Date(d.getFullYear(),d.getMonth()).toISOString(),status:"pending",groupId,installmentNum:i+1,totalInstallments:rm});
+            }catch(e){}
+          }
+        }
+        onClose();
+      }}>Save</button>
+    </div>
+  </div></div>;
+}
+
+// ─── MODAL EDIT PAYABLE ───────────────────────────────────────────────────────
+function ModalEditPayable({item,onSave,onAdd,onClose}) {
+  const [f,setF]=useState({...item,_recurMonths:1});
+  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  const rm=f._recurMonths||1;
+  return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
+    <div className="mtitle">Edit — {item.description}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div className="fg"><div className="fl">Description</div><input value={f.description} onChange={e=>s("description",e.target.value)}/></div>
+      <div className="fg"><div className="fl">Vendor</div><input value={f.vendor||""} onChange={e=>s("vendor",e.target.value)}/></div>
+      <div className="g2">
+        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",Number(e.target.value))}/></div>
+        <div className="fg"><div className="fl">Due Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
+      </div>
+      <div className="fg"><div className="fl">Category</div>
+        <select value={f.category||"custos_fixos"} onChange={e=>s("category",e.target.value)}>
+          {Object.entries(DRE_LABELS).filter(([k])=>!["receita_liquida","margem","lucro_op","lucro_ir","rev_operacional","rev_genn","impostos"].includes(k)).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+      <div className="fg"><div className="fl">Repeat for how many months?</div>
+        <select value={rm} onChange={e=>s("_recurMonths",Number(e.target.value))}>
+          {[1,2,3,4,5,6,12].map(n=><option key={n} value={n}>{n===1?"This month only":n===12?"12 months (1 year)":n+" months"}</option>)}
+        </select>
+      </div>
+      {rm>1&&<div className="info">Will update this item + create {rm-1} new copies in the following months.</div>}
+      <div className="fg"><div className="fl">Status</div>
+        <select value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
+      </div>
+      <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
+    </div>
+    <div className="mact">
+      <button className="btn bgg" onClick={onClose}>Cancel</button>
+      <button className="btn bp" onClick={()=>{
+        const {_recurMonths,...clean}=f;
+        onSave(clean);
+        if(rm>1&&f.dueDate){
+          const groupId=f.groupId||Date.now().toString();
+          for(let i=1;i<rm;i++){
+            try{
+              const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);
+              const dd=d.toISOString().split("T")[0];
+              onAdd({...clean,id:Date.now().toString()+"p"+i,dueDate:dd,createdAt:new Date(d.getFullYear(),d.getMonth()).toISOString(),status:"pending",groupId,installmentNum:i+1,totalInstallments:rm});
+            }catch(e){}
+          }
+        }
+        onClose();
+      }}>Save</button>
+    </div>
+  </div></div>;
+}
+
 function ContractorsTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editItem,setEditItem]=useState(null);
-  const items=useMemo(()=>(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.contractors,month,year]);
+  const items=useMemo(()=>(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.dueDate||r.createdAt)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.contractors,month,year]);
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
@@ -842,20 +940,7 @@ function ContractorsTab({data,setData,month,year}) {
       </div>
     </>)}
     {showAdd&&<ModalContractor onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
-    {editItem&&<div className="overlay" onClick={()=>setEditItem(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
-      <div className="mtitle">Edit — {editItem.name}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div className="fg"><div className="fl">Name</div><input value={editItem.name} onChange={e=>setEditItem(p=>({...p,name:e.target.value}))}/></div>
-        <div className="fg"><div className="fl">Job</div><input value={editItem.job||""} onChange={e=>setEditItem(p=>({...p,job:e.target.value}))}/></div>
-        <div className="g2">
-          <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={editItem.amount} onChange={e=>setEditItem(p=>({...p,amount:e.target.value}))}/></div>
-          <div className="fg"><div className="fl">Payment Date</div><input type="date" value={editItem.dueDate||""} onChange={e=>setEditItem(p=>({...p,dueDate:e.target.value}))}/></div>
-        </div>
-        <div className="fg"><div className="fl">Status</div><select value={editItem.status} onChange={e=>setEditItem(p=>({...p,status:e.target.value}))}><option value="pending">Pending</option><option value="paid">Paid</option></select></div>
-        <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={editItem.notes||""} onChange={e=>setEditItem(p=>({...p,notes:e.target.value}))}/></div>
-      </div>
-      <div className="mact"><button className="btn bgg" onClick={()=>setEditItem(null)}>Cancel</button><button className="btn bp" onClick={()=>{update(editItem);setEditItem(null);}}>Save Changes</button></div>
-    </div></div>}
+    {editItem&&<ModalEditContractor item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)}/>}
   </div>;
 }
 
@@ -924,25 +1009,7 @@ function PayablesTab({data,setData,month,year}) {
       </div>
     </>)}
     {showAdd&&<ModalPayable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
-    {editItem&&<div className="overlay" onClick={()=>setEditItem(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
-      <div className="mtitle">Edit — {editItem.description}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div className="fg"><div className="fl">Description</div><input value={editItem.description} onChange={e=>setEditItem(p=>({...p,description:e.target.value}))}/></div>
-        <div className="fg"><div className="fl">Vendor</div><input value={editItem.vendor||""} onChange={e=>setEditItem(p=>({...p,vendor:e.target.value}))}/></div>
-        <div className="g2">
-          <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={editItem.amount} onChange={e=>setEditItem(p=>({...p,amount:Number(e.target.value)}))}/></div>
-          <div className="fg"><div className="fl">Due Date</div><input type="date" value={editItem.dueDate||""} onChange={e=>setEditItem(p=>({...p,dueDate:e.target.value}))}/></div>
-        </div>
-        <div className="fg"><div className="fl">Category</div>
-          <select value={editItem.category||"custos_fixos"} onChange={e=>setEditItem(p=>({...p,category:e.target.value}))}>
-            {Object.entries(DRE_LABELS).filter(([k])=>!["receita_liquida","margem","lucro_op","lucro_ir","rev_operacional","rev_genn","impostos"].includes(k)).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-          </select>
-        </div>
-        <div className="fg"><div className="fl">Status</div><select value={editItem.status} onChange={e=>setEditItem(p=>({...p,status:e.target.value}))}><option value="pending">Pending</option><option value="paid">Paid</option></select></div>
-        <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={editItem.notes||""} onChange={e=>setEditItem(p=>({...p,notes:e.target.value}))}/></div>
-      </div>
-      <div className="mact"><button className="btn bgg" onClick={()=>setEditItem(null)}>Cancel</button><button className="btn bp" onClick={()=>{update(editItem);setEditItem(null);}}>Save Changes</button></div>
-    </div></div>}
+    {editItem&&<ModalEditPayable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)}/>}
   </div>;
 }
 
@@ -1300,7 +1367,7 @@ function OperationalDashboard({data,month,year}) {
   }
   const computed=computeDRE(displayData,mk);
   const receivables=(data.receivables||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
-  const contractors=(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
+  const contractors=(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.dueDate||r.createdAt)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
   const pendingRec=receivables.filter(r=>r.status!=="paid").reduce((s,r)=>s+fmtNum(r.remaining),0);
   const pendingCon=contractors.filter(c=>c.status!=="paid").reduce((s,c)=>s+fmtNum(c.amount),0);
   const overdueRec=receivables.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0);
