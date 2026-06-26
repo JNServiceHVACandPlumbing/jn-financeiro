@@ -639,10 +639,11 @@ function ModalPayable({onSave,onClose,month,year}) {
 
 
 // ─── MODAL EDIT RECEIVABLE ────────────────────────────────────────────────────
-function ModalEditReceivable({item,onSave,onClose}) {
-  const [f,setF]=useState({...item});
+function ModalEditReceivable({item,onSave,onAdd,onClose}) {
+  const [f,setF]=useState({...item,_recurMonths:1});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   const rem=Math.max(0,fmtNum(f.total)-fmtNum(f.deposited));
+  const rm=f._recurMonths||1;
   return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
     <div className="mtitle">Edit Receivable — {item.client}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -663,12 +664,35 @@ function ModalEditReceivable({item,onSave,onClose}) {
           <option value="paid">Paid</option>
         </select>
       </div>
+      <div className="fg"><div className="fl">Also repeat for additional months?</div>
+        <select value={rm} onChange={e=>s("_recurMonths",Number(e.target.value))}>
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map(n=><option key={n} value={n}>{n===1?"No — just update this entry":n===12?"+ 12 more months":"+ "+n+" more month"+(n>1?"s":"")}</option>)}
+        </select>
+      </div>
+      {rm>1&&<div className="info">Will update this entry + create {rm} new copies in the following months with same values (Deposited = $0, Status = Pending).</div>}
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
       <div style={{background:"rgba(74,188,212,0.1)",border:"1px solid rgba(74,188,212,0.2)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#4ABCD4"}}>Balance: {fmt(rem)}</div>
     </div>
     <div className="mact">
       <button className="btn bgg" onClick={onClose}>Cancel</button>
-      <button className="btn bp" onClick={()=>{onSave({...f,remaining:rem,status:rem<=0?"paid":f.status});onClose();}}>Save Changes</button>
+      <button className="btn bp" onClick={()=>{
+        const {_recurMonths,...clean}=f;
+        const finalStatus=rem<=0?"paid":f.status;
+        onSave({...clean,remaining:rem,status:finalStatus});
+        if(rm>1){
+          const groupId=f.groupId||Date.now().toString();
+          for(let i=1;i<=rm;i++){
+            try{
+              let newBilled=f.billedDate,newDue=f.dueDate;
+              if(f.billedDate){const d=parseLocalDate(f.billedDate);d.setMonth(d.getMonth()+i);newBilled=d.toISOString().split("T")[0];}
+              if(f.dueDate){const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);newDue=d.toISOString().split("T")[0];}
+              const newMon=newBilled?parseLocalDate(newBilled):parseLocalDate(f.billedDate||f.createdAt);
+              onAdd({...clean,id:Date.now().toString()+"r"+i,billedDate:newBilled,dueDate:newDue,deposited:0,remaining:fmtNum(clean.total),status:"pending",groupId,installmentNum:(clean.installmentNum||1)+i,totalInstallments:(clean.totalInstallments||1)+rm,createdAt:new Date(newMon.getFullYear(),newMon.getMonth()).toISOString()});
+            }catch(e){}
+          }
+        }
+        onClose();
+      }}>Save Changes</button>
     </div>
   </div></div>;
 }
@@ -776,7 +800,7 @@ function ReceivablesTab({data,setData,month,year}) {
       </div>
     </>)}
     {showAdd&&<ModalReceivable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
-    {editItem&&<ModalEditReceivable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onClose={()=>setEditItem(null)}/>}
+    {editItem&&<ModalEditReceivable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)}/>}
   </div>;
 }
 
