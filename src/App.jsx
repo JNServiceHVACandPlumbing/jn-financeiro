@@ -863,7 +863,7 @@ function ContractorsTab({data,setData,month,year}) {
 function PayablesTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editItem,setEditItem]=useState(null);
-  const items=useMemo(()=>(data.payables||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.payables,month,year]);
+  const items=useMemo(()=>(data.payables||[]).filter(r=>{const d=parseLocalDate(r.dueDate||r.createdAt)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.payables,month,year]);
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
@@ -1304,7 +1304,7 @@ function OperationalDashboard({data,month,year}) {
   const pendingRec=receivables.filter(r=>r.status!=="paid").reduce((s,r)=>s+fmtNum(r.remaining),0);
   const pendingCon=contractors.filter(c=>c.status!=="paid").reduce((s,c)=>s+fmtNum(c.amount),0);
   const overdueRec=receivables.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0);
-  const overduePay=(data.payables||[]).filter(p=>{const d=parseLocalDate(p.createdAt||p.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year&&p.status!=="paid"&&agingDays(p.dueDate)>0;});
+  const overduePay=(data.payables||[]).filter(p=>{const d=parseLocalDate(p.dueDate||p.createdAt)||new Date();return d.getMonth()===month&&d.getFullYear()===year&&p.status!=="paid"&&agingDays(p.dueDate)>0;});
   const margin=computed.receita_liquida>0?Math.round(computed.margem/computed.receita_liquida*100):0;
   return <div>
     <RolloverBanner month={month} year={year}/>
