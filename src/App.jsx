@@ -639,11 +639,66 @@ function ModalPayable({onSave,onClose,month,year}) {
 
 
 // ─── MODAL EDIT RECEIVABLE ────────────────────────────────────────────────────
+// ─── RECURRENCE HELPER ───────────────────────────────────────────────────────
+const WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+function generateRecurDates(baseDate, type, count, weekday){
+  const dates=[];
+  if(!baseDate) return dates;
+  const d=parseLocalDate(baseDate);
+  for(let i=1;i<=count;i++){
+    const nd=new Date(d);
+    if(type==="monthly") nd.setMonth(nd.getMonth()+i);
+    else if(type==="weekly"){
+      // find next occurrence of weekday after current date + i*7 days
+      nd.setDate(nd.getDate()+i*7);
+      // adjust to target weekday
+      const diff=(weekday-nd.getDay()+7)%7;
+      nd.setDate(nd.getDate()+diff);
+    }
+    dates.push(nd.toISOString().split("T")[0]);
+  }
+  return dates;
+}
+
+// ─── RECURRENCE PANEL (shared UI) ────────────────────────────────────────────
+function RecurrencePanel({recur,setRecur}){
+  const {enabled,type,count,weekday}=recur;
+  return <div style={{background:"var(--bg2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 14px"}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:enabled?12:0}}>
+      <input type="checkbox" id="recur-en" checked={enabled} onChange={e=>setRecur(r=>({...r,enabled:e.target.checked}))} style={{width:"auto"}}/>
+      <label htmlFor="recur-en" style={{fontSize:13,color:"var(--t1)",cursor:"pointer",fontWeight:500}}>Repeat this entry</label>
+    </div>
+    {enabled&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <div className="g2">
+        <div className="fg"><div className="fl">Frequency</div>
+          <select value={type} onChange={e=>setRecur(r=>({...r,type:e.target.value}))}>
+            <option value="monthly">Monthly (same day)</option>
+            <option value="weekly">Weekly (choose day)</option>
+          </select>
+        </div>
+        <div className="fg"><div className="fl">{type==="monthly"?"Months":"Weeks"} to repeat</div>
+          <select value={count} onChange={e=>setRecur(r=>({...r,count:Number(e.target.value)}))}>
+            {Array.from({length:type==="monthly"?12:52},(_,i)=>i+1).map(n=><option key={n} value={n}>{n} {type==="monthly"?"month":"week"}{n>1?"s":""}</option>)}
+          </select>
+        </div>
+      </div>
+      {type==="weekly"&&<div className="fg"><div className="fl">Day of the week</div>
+        <select value={weekday} onChange={e=>setRecur(r=>({...r,weekday:Number(e.target.value)}))}>
+          {WEEKDAYS.map((d,i)=><option key={i} value={i}>{d}</option>)}
+        </select>
+      </div>}
+      <div className="info" style={{marginBottom:0}}>Will create {count} {type==="weekly"?"weekly":"monthly"} copies — each starting Pending with $0 deposited.</div>
+    </div>}
+  </div>;
+}
+
+// ─── MODAL EDIT RECEIVABLE ────────────────────────────────────────────────────
 function ModalEditReceivable({item,onSave,onAdd,onClose}) {
-  const [f,setF]=useState({...item,_recurMonths:1});
+  const [f,setF]=useState({...item});
+  const [recur,setRecur]=useState({enabled:false,type:"monthly",count:1,weekday:5});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   const rem=Math.max(0,fmtNum(f.total)-fmtNum(f.deposited));
-  const rm=f._recurMonths||1;
+  const finalStatus=rem<=0?"paid":f.status;
   return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
     <div className="mtitle">Edit Receivable — {item.client}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -657,39 +712,34 @@ function ModalEditReceivable({item,onSave,onAdd,onClose}) {
         <div className="fg"><div className="fl">Total Amount ($)</div><input type="number" value={f.total} onChange={e=>s("total",e.target.value)}/></div>
         <div className="fg"><div className="fl">Already Deposited ($)</div><input type="number" value={f.deposited} onChange={e=>s("deposited",e.target.value)}/></div>
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:8}}><input type="checkbox" id="mse" checked={f.massSave||false} onChange={e=>s("massSave",e.target.checked)} style={{width:"auto"}}/><label htmlFor="mse" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Mass Save</label></div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <input type="checkbox" id="mse" checked={f.massSave||false} onChange={e=>s("massSave",e.target.checked)} style={{width:"auto"}}/>
+        <label htmlFor="mse" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Mass Save</label>
+      </div>
       <div className="fg"><div className="fl">Status</div>
         <select value={f.status} onChange={e=>s("status",e.target.value)}>
           <option value="pending">Pending</option>
           <option value="paid">Paid</option>
         </select>
       </div>
-      <div className="fg"><div className="fl">Also repeat for additional months?</div>
-        <select value={rm} onChange={e=>s("_recurMonths",Number(e.target.value))}>
-          {[1,2,3,4,5,6,7,8,9,10,11,12].map(n=><option key={n} value={n}>{n===1?"No — just update this entry":n===12?"+ 12 more months":"+ "+n+" more month"+(n>1?"s":"")}</option>)}
-        </select>
-      </div>
-      {rm>1&&<div className="info">Will update this entry + create {rm} new copies in the following months with same values (Deposited = $0, Status = Pending).</div>}
+      <RecurrencePanel recur={recur} setRecur={setRecur}/>
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
       <div style={{background:"rgba(74,188,212,0.1)",border:"1px solid rgba(74,188,212,0.2)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#4ABCD4"}}>Balance: {fmt(rem)}</div>
     </div>
     <div className="mact">
       <button className="btn bgg" onClick={onClose}>Cancel</button>
       <button className="btn bp" onClick={()=>{
-        const {_recurMonths,...clean}=f;
-        const finalStatus=rem<=0?"paid":f.status;
-        onSave({...clean,remaining:rem,status:finalStatus});
-        if(rm>1){
+        onSave({...f,remaining:rem,status:finalStatus});
+        if(recur.enabled){
           const groupId=f.groupId||Date.now().toString();
-          for(let i=1;i<=rm;i++){
-            try{
-              let newBilled=f.billedDate,newDue=f.dueDate;
-              if(f.billedDate){const d=parseLocalDate(f.billedDate);d.setMonth(d.getMonth()+i);newBilled=d.toISOString().split("T")[0];}
-              if(f.dueDate){const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);newDue=d.toISOString().split("T")[0];}
-              const newMon=newBilled?parseLocalDate(newBilled):parseLocalDate(f.billedDate||f.createdAt);
-              onAdd({...clean,id:Date.now().toString()+"r"+i,billedDate:newBilled,dueDate:newDue,deposited:0,remaining:fmtNum(clean.total),status:"pending",groupId,installmentNum:(clean.installmentNum||1)+i,totalInstallments:(clean.totalInstallments||1)+rm,createdAt:new Date(newMon.getFullYear(),newMon.getMonth()).toISOString()});
-            }catch(e){}
-          }
+          const refDate=f.dueDate||f.billedDate;
+          const dates=generateRecurDates(refDate,recur.type,recur.count,recur.weekday);
+          dates.forEach((dd,i)=>{
+            const nd=parseLocalDate(dd);
+            let nb=f.billedDate;
+            if(f.billedDate&&recur.type==="monthly"){const bd=parseLocalDate(f.billedDate);bd.setMonth(bd.getMonth()+i+1);nb=bd.toISOString().split("T")[0];}
+            onAdd({...f,id:Date.now().toString()+"r"+(i+1),billedDate:nb||dd,dueDate:dd,deposited:0,remaining:fmtNum(f.total),status:"pending",groupId,installmentNum:(f.installmentNum||1)+(i+1),totalInstallments:(f.totalInstallments||1)+recur.count,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString()});
+          });
         }
         onClose();
       }}>Save Changes</button>
@@ -808,9 +858,9 @@ function ReceivablesTab({data,setData,month,year}) {
 
 // ─── MODAL EDIT CONTRACTOR ───────────────────────────────────────────────────
 function ModalEditContractor({item,onSave,onAdd,onClose}) {
-  const [f,setF]=useState({...item,_recurMonths:1});
+  const [f,setF]=useState({...item});
+  const [recur,setRecur]=useState({enabled:false,type:"monthly",count:1,weekday:5});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
-  const rm=f._recurMonths||1;
   return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
     <div className="mtitle">Edit — {item.name}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -820,31 +870,23 @@ function ModalEditContractor({item,onSave,onAdd,onClose}) {
         <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",e.target.value)}/></div>
         <div className="fg"><div className="fl">Payment Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
       </div>
-      <div className="fg"><div className="fl">Repeat for how many months?</div>
-        <select value={rm} onChange={e=>s("_recurMonths",Number(e.target.value))}>
-          {[1,2,3,4,5,6,12].map(n=><option key={n} value={n}>{n===1?"This month only":n===12?"12 months (1 year)":n+" months"}</option>)}
-        </select>
-      </div>
-      {rm>1&&<div className="info">Will update this item + create {rm-1} new copies in the following months.</div>}
       <div className="fg"><div className="fl">Status</div>
         <select value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
       </div>
+      <RecurrencePanel recur={recur} setRecur={setRecur}/>
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
     </div>
     <div className="mact">
       <button className="btn bgg" onClick={onClose}>Cancel</button>
       <button className="btn bp" onClick={()=>{
-        const {_recurMonths,...clean}=f;
-        onSave(clean);
-        if(rm>1&&f.dueDate){
+        onSave({...f});
+        if(recur.enabled&&f.dueDate){
           const groupId=f.groupId||Date.now().toString();
-          for(let i=1;i<rm;i++){
-            try{
-              const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);
-              const dd=d.toISOString().split("T")[0];
-              onAdd({...clean,id:Date.now().toString()+"c"+i,dueDate:dd,createdAt:new Date(d.getFullYear(),d.getMonth()).toISOString(),status:"pending",groupId,installmentNum:i+1,totalInstallments:rm});
-            }catch(e){}
-          }
+          const dates=generateRecurDates(f.dueDate,recur.type,recur.count,recur.weekday);
+          dates.forEach((dd,i)=>{
+            const nd=parseLocalDate(dd);
+            onAdd({...f,id:Date.now().toString()+"c"+(i+1),dueDate:dd,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString(),status:"pending",groupId,installmentNum:(f.installmentNum||1)+(i+1),totalInstallments:(f.totalInstallments||1)+recur.count});
+          });
         }
         onClose();
       }}>Save</button>
@@ -854,9 +896,9 @@ function ModalEditContractor({item,onSave,onAdd,onClose}) {
 
 // ─── MODAL EDIT PAYABLE ───────────────────────────────────────────────────────
 function ModalEditPayable({item,onSave,onAdd,onClose}) {
-  const [f,setF]=useState({...item,_recurMonths:1});
+  const [f,setF]=useState({...item});
+  const [recur,setRecur]=useState({enabled:false,type:"monthly",count:1,weekday:5});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
-  const rm=f._recurMonths||1;
   return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
     <div className="mtitle">Edit — {item.description}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -871,31 +913,23 @@ function ModalEditPayable({item,onSave,onAdd,onClose}) {
           {Object.entries(DRE_LABELS).filter(([k])=>!["receita_liquida","margem","lucro_op","lucro_ir","rev_operacional","rev_genn","impostos"].includes(k)).map(([k,v])=><option key={k} value={k}>{v}</option>)}
         </select>
       </div>
-      <div className="fg"><div className="fl">Repeat for how many months?</div>
-        <select value={rm} onChange={e=>s("_recurMonths",Number(e.target.value))}>
-          {[1,2,3,4,5,6,12].map(n=><option key={n} value={n}>{n===1?"This month only":n===12?"12 months (1 year)":n+" months"}</option>)}
-        </select>
-      </div>
-      {rm>1&&<div className="info">Will update this item + create {rm-1} new copies in the following months.</div>}
       <div className="fg"><div className="fl">Status</div>
         <select value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
       </div>
+      <RecurrencePanel recur={recur} setRecur={setRecur}/>
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
     </div>
     <div className="mact">
       <button className="btn bgg" onClick={onClose}>Cancel</button>
       <button className="btn bp" onClick={()=>{
-        const {_recurMonths,...clean}=f;
-        onSave(clean);
-        if(rm>1&&f.dueDate){
+        onSave({...f});
+        if(recur.enabled&&f.dueDate){
           const groupId=f.groupId||Date.now().toString();
-          for(let i=1;i<rm;i++){
-            try{
-              const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);
-              const dd=d.toISOString().split("T")[0];
-              onAdd({...clean,id:Date.now().toString()+"p"+i,dueDate:dd,createdAt:new Date(d.getFullYear(),d.getMonth()).toISOString(),status:"pending",groupId,installmentNum:i+1,totalInstallments:rm});
-            }catch(e){}
-          }
+          const dates=generateRecurDates(f.dueDate,recur.type,recur.count,recur.weekday);
+          dates.forEach((dd,i)=>{
+            const nd=parseLocalDate(dd);
+            onAdd({...f,id:Date.now().toString()+"p"+(i+1),dueDate:dd,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString(),status:"pending",groupId,installmentNum:(f.installmentNum||1)+(i+1),totalInstallments:(f.totalInstallments||1)+recur.count});
+          });
         }
         onClose();
       }}>Save</button>
