@@ -176,9 +176,18 @@ function agingLabel(days){
   return {label:`${days}d overdue`,color:"#991b1b"};
 }
 
-function computeDRE(d){
+// monthKey is optional "YYYY-M" string. From May 2026 (2026-4) onward, rev_genn is informational
+// only (already included in rev_operacional from the CSV) and must NOT be added to revenue.
+// Jan-Apr 2026 historical closed months keep the old formula (rev_genn was additive back then).
+function isGennInformationalOnly(monthKey){
+  if(!monthKey) return false;
+  const [y,m]=monthKey.split("-").map(Number);
+  return y>2026 || (y===2026 && m>=4); // 2026-4 = May 2026 onward
+}
+function computeDRE(d,monthKey){
   const v=k=>fmtNum(d[k]);
-  const receita_liquida=v("rev_operacional")+v("rev_genn")-v("impostos");
+  const gennIsInfo=isGennInformationalOnly(monthKey);
+  const receita_liquida=v("rev_operacional")+(gennIsInfo?0:v("rev_genn"))-v("impostos");
   const margem=receita_liquida-v("cogs_materials")-v("cogs_genn")-v("cogs_subs")-v("cogs_fuel");
   const lucro_op=margem-v("mkt")-v("sal_ops")-v("sal_adm")-v("custos_fixos")-v("estoque")-v("softwares")-v("contabilidade");
   const lucro_ir=lucro_op-v("desp_gerais")-v("taxas_bank");
@@ -187,7 +196,14 @@ function computeDRE(d){
 
 function getBaseForMonth(data,year,month){
   const key=`${year}-${month}`;
-  return data.dreData?.[key]||HIST_R[key]||null;
+  const fromFirebase=data.dreData?.[key];
+  const fromHist=HIST_R[key];
+  const base=fromFirebase||fromHist||null;
+  // Treat a month as "no DRE data yet" if revenue is zero/missing — prevents partial/test
+  // documents (e.g. only a stray eco adjustment field) from polluting Analytics totals.
+  if(!base) return null;
+  if(fmtNum(base.rev_operacional)<=0 && fmtNum(base.rev_genn)<=0) return null;
+  return base;
 }
 
 function getDREForMonth(data,year,month,type){
@@ -195,7 +211,9 @@ function getDREForMonth(data,year,month,type){
   const base=getBaseForMonth(data,year,month);
   if(type==="eco"){
     if(!base) return null;
-    const extra=data.dreEcoExtra?.[key]||{};
+    // Extra economic adjustments default to HIST_E delta (if no manual override saved yet)
+    const histEcoDelta=HIST_E[key]?Object.fromEntries(DRE_INPUT_KEYS.map(k=>[k,Math.max(0,(HIST_E[key]?.[k]||0)-(HIST_R[key]?.[k]||0))])):{};
+    const extra=data.dreEcoExtra?.[key]||histEcoDelta;
     const merged={...base};
     DRE_INPUT_KEYS.forEach(k=>{merged[k]=fmtNum(base[k])+fmtNum(extra[k]);});
     return merged;
@@ -284,84 +302,171 @@ function parsePayments(text){
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const css=`
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'DM Sans',sans-serif;background:#0d0d0d;color:#f5f5f5;min-height:100vh;}
-:root{--r:#E8392A;--b:#4ABCD4;--o:#E8622A;--y:#F5A623;--t:#1B7A8A;--g:#34d399;--am:#fbbf24;--re:#f87171;--bg1:#141414;--bg2:#1e1e1e;--bg3:#272727;--bdr:rgba(255,255,255,0.08);--t1:#f5f5f5;--t2:#999;--mono:'DM Mono',monospace;}
-.app{display:flex;flex-direction:column;min-height:100vh;}
-.topbar{background:var(--bg1);border-bottom:1px solid var(--bdr);padding:0 20px;display:flex;align-items:center;gap:10px;height:52px;position:sticky;top:0;z-index:100;}
-.logo{font-size:14px;font-weight:600;color:var(--t1);white-space:nowrap;flex-shrink:0;}.logo span{color:var(--r);}
-.stabs{display:flex;gap:2px;background:var(--bg3);padding:3px;border-radius:8px;flex-shrink:0;}
-.stab{background:none;border:none;color:var(--t2);padding:5px 12px;border-radius:6px;font-size:12px;font-family:'DM Sans';cursor:pointer;transition:all 0.15s;font-weight:500;white-space:nowrap;}
-.stab.active{background:var(--bg1);color:var(--t1);}
-.msel{background:var(--bg2);border:1px solid var(--bdr);color:var(--t1);padding:5px 10px;border-radius:7px;font-size:13px;font-family:'DM Sans';cursor:pointer;flex-shrink:0;}
-.subnav{background:var(--bg1);border-bottom:1px solid var(--bdr);padding:0 20px;display:flex;align-items:center;gap:2px;height:40px;position:sticky;top:52px;z-index:99;overflow-x:auto;}
-.subnav::-webkit-scrollbar{height:2px;}.subnav::-webkit-scrollbar-thumb{background:var(--bg3);}
-.nb{background:none;border:none;color:var(--t2);padding:6px 14px;border-radius:7px;font-size:12px;font-family:'DM Sans';cursor:pointer;transition:all 0.15s;font-weight:500;white-space:nowrap;}
-.nb:hover{background:var(--bg3);color:var(--t1);}.nb.ac{background:var(--r);color:white;}.nb.at{background:var(--t);color:white;}
-.sync{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:auto;}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--g);}
-.sync-dot.saving{background:var(--am);animation:pulse 1s infinite;}
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'DM Sans',sans-serif;background:#0b0b0d;color:#f5f5f5;min-height:100vh;}
+:root{--r:#E8392A;--b:#4ABCD4;--o:#E8622A;--y:#F5A623;--t:#1B7A8A;--g:#34d399;--am:#fbbf24;--re:#f87171;--bg1:#141416;--bg2:#1c1c1f;--bg3:#26262a;--bdr:rgba(255,255,255,0.08);--t1:#f5f5f5;--t2:#9a9aa0;--mono:'DM Mono',monospace;
+  --grad-jn:linear-gradient(100deg,#E8392A 0%,#E8622A 33%,#F5A623 66%,#4ABCD4 100%);
+  --grad-jn-soft:linear-gradient(110deg,rgba(232,57,42,0.14) 0%,rgba(232,98,42,0.10) 38%,rgba(245,166,35,0.08) 68%,rgba(74,188,212,0.12) 100%);
+}
+.app{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;}
+
+/* ── TOPBAR ───────────────────────────────────────────────── */
+.topbar{position:relative;background:var(--bg1);border-bottom:1px solid var(--bdr);padding:0 20px;display:flex;align-items:center;gap:10px;height:56px;position:sticky;top:0;z-index:100;overflow:hidden;}
+.topbar::before{content:"";position:absolute;inset:0;background:var(--grad-jn);opacity:0.08;pointer-events:none;}
+.topbar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--grad-jn);}
+.logo{font-size:14px;font-weight:700;color:var(--t1);white-space:nowrap;flex-shrink:0;position:relative;letter-spacing:.2px;}
+.logo span{background:var(--grad-jn);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.stabs{display:flex;gap:2px;background:var(--bg3);padding:3px;border-radius:8px;flex-shrink:0;position:relative;}
+.stab{background:none;border:none;color:var(--t2);padding:6px 13px;border-radius:6px;font-size:12px;font-family:'DM Sans';cursor:pointer;transition:all 0.15s;font-weight:600;white-space:nowrap;}
+.stab.active{background:var(--grad-jn);color:white;box-shadow:0 2px 10px rgba(232,57,42,0.35);}
+.msel{background:var(--bg2);border:1px solid var(--bdr);color:var(--t1);padding:6px 11px;border-radius:7px;font-size:13px;font-family:'DM Sans';cursor:pointer;flex-shrink:0;font-weight:500;}
+.subnav{position:relative;background:var(--bg1);border-bottom:1px solid var(--bdr);padding:0 20px;display:flex;align-items:center;gap:2px;height:42px;position:sticky;top:56px;z-index:99;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.subnav::-webkit-scrollbar{display:none;}
+.nb{background:none;border:none;color:var(--t2);padding:7px 14px;border-radius:7px;font-size:12px;font-family:'DM Sans';cursor:pointer;transition:all 0.15s;font-weight:600;white-space:nowrap;flex-shrink:0;}
+.nb:hover{background:var(--bg3);color:var(--t1);}
+.nb.ac{background:var(--grad-jn);color:white;box-shadow:0 2px 8px rgba(232,57,42,0.3);}
+.nb.at{background:linear-gradient(110deg,#1B7A8A,#4ABCD4);color:white;box-shadow:0 2px 8px rgba(27,122,138,0.35);}
+.sync{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:auto;font-weight:500;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--g);box-shadow:0 0 6px rgba(52,211,153,0.6);}
+.sync-dot.saving{background:var(--am);animation:pulse 1s infinite;box-shadow:0 0 6px rgba(251,191,36,0.6);}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* ── LAYOUT ───────────────────────────────────────────────── */
 .content{flex:1;padding:24px;max-width:1200px;width:100%;margin:0 auto;}
-.ptitle{font-size:18px;font-weight:600;color:var(--t1);margin-bottom:3px;}
+.ptitle{font-size:18px;font-weight:700;color:var(--t1);margin-bottom:3px;letter-spacing:-.2px;}
 .psub{font-size:12px;color:var(--t2);margin-bottom:20px;}
-.card{background:var(--bg1);border:1px solid var(--bdr);border-radius:12px;padding:20px;margin-bottom:16px;}
-.ctitle{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:14px;}
+.card{position:relative;background:var(--bg1);border:1px solid var(--bdr);border-radius:14px;padding:20px;margin-bottom:16px;overflow:hidden;}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--grad-jn);opacity:0.5;}
+.ctitle{font-size:13px;font-weight:700;color:var(--t1);margin-bottom:14px;letter-spacing:-.1px;}
+
+/* ── TABLES ───────────────────────────────────────────────── */
 table{width:100%;border-collapse:collapse;font-size:13px;}
-th{text-align:left;padding:8px 12px;color:var(--t2);font-weight:500;font-size:11px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--bdr);}
-td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--t1);vertical-align:middle;}
-tr:last-child td{border-bottom:none;}tr:hover td{background:rgba(255,255,255,0.02);}
-.badge{display:inline-block;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:500;font-family:var(--mono);}
-.bg{background:rgba(52,211,153,.15);color:#34d399;}.br{background:rgba(248,113,113,.15);color:#f87171;}.bam{background:rgba(251,191,36,.15);color:#fbbf24;}
-.btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-family:'DM Sans';cursor:pointer;font-weight:500;transition:all .15s;}
-.bp{background:var(--r);color:white;}.bp:hover{background:#f04438;}
-.bgg{background:var(--bg3);color:var(--t2);}.bgg:hover{color:var(--t1);}
-.bok{background:rgba(52,211,153,.15);color:#34d399;}.bok:hover{background:rgba(52,211,153,.25);}
-.bdel{background:rgba(248,113,113,.15);color:#f87171;}.bdel:hover{background:rgba(248,113,113,.25);}
-.bsm{padding:5px 10px;font-size:12px;}
-.bblue{background:rgba(74,188,212,.15);color:#4ABCD4;}.bblue:hover{background:rgba(74,188,212,.25);}
-input,select,textarea{background:var(--bg2);border:1px solid var(--bdr);color:var(--t1);padding:8px 12px;border-radius:8px;font-size:13px;font-family:'DM Sans';width:100%;}
+th{text-align:left;padding:9px 12px;color:var(--t2);font-weight:600;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid var(--bdr);}
+td{padding:11px 12px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--t1);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,0.025);}
+.badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:700;font-family:var(--mono);letter-spacing:.2px;}
+.bg{background:rgba(52,211,153,.16);color:#34d399;}
+.br{background:rgba(248,113,113,.16);color:#f87171;}
+.bam{background:rgba(251,191,36,.16);color:#fbbf24;}
+
+/* ── BUTTONS ──────────────────────────────────────────────── */
+.btn{border:none;border-radius:9px;padding:9px 17px;font-size:13px;font-family:'DM Sans';cursor:pointer;font-weight:600;transition:all .15s;-webkit-tap-highlight-color:transparent;}
+.btn:active{transform:scale(0.97);}
+.bp{background:var(--grad-jn);color:white;box-shadow:0 2px 10px rgba(232,57,42,0.3);}
+.bp:hover{filter:brightness(1.08);box-shadow:0 3px 14px rgba(232,57,42,0.4);}
+.bgg{background:var(--bg3);color:var(--t2);}
+.bgg:hover{color:var(--t1);background:#303034;}
+.bok{background:rgba(52,211,153,.16);color:#34d399;}
+.bok:hover{background:rgba(52,211,153,.27);}
+.bdel{background:rgba(248,113,113,.16);color:#f87171;}
+.bdel:hover{background:rgba(248,113,113,.27);}
+.bsm{padding:6px 12px;font-size:12px;}
+.bblue{background:rgba(74,188,212,.16);color:#4ABCD4;}
+.bblue:hover{background:rgba(74,188,212,.27);}
+
+/* ── FORMS ────────────────────────────────────────────────── */
+input,select,textarea{background:var(--bg2);border:1px solid var(--bdr);color:var(--t1);padding:9px 12px;border-radius:9px;font-size:13px;font-family:'DM Sans';width:100%;}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--r);border-color:transparent;}
 input::placeholder{color:var(--t2);}
-.fg{display:flex;flex-direction:column;gap:5px;}.fl{font-size:11px;color:var(--t2);font-weight:500;text-transform:uppercase;letter-spacing:.5px;}
+.fg{display:flex;flex-direction:column;gap:5px;}
+.fl{font-size:11px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
-.stat{background:var(--bg2);border-radius:10px;padding:16px;}
-.sl{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
-.sv{font-size:20px;font-weight:600;font-family:var(--mono);}.ss{font-size:11px;color:var(--t2);margin-top:3px;}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:200;}
-.modal{background:var(--bg1);border:1px solid var(--bdr);border-radius:16px;padding:28px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;}
-.mtitle{font-size:16px;font-weight:600;margin-bottom:20px;color:var(--t1);}
+
+/* ── STAT CARDS ───────────────────────────────────────────── */
+.stat{position:relative;background:var(--bg2);border:1px solid var(--bdr);border-radius:12px;padding:16px;overflow:hidden;}
+.stat::after{content:"";position:absolute;right:-20px;top:-20px;width:70px;height:70px;border-radius:50%;background:var(--grad-jn);opacity:0.08;}
+.sl{font-size:10.5px;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:600;}
+.sv{font-size:20px;font-weight:700;font-family:var(--mono);position:relative;}
+.ss{font-size:11px;color:var(--t2);margin-top:3px;}
+
+/* ── MODALS ───────────────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;backdrop-filter:blur(2px);}
+.modal{position:relative;background:var(--bg1);border:1px solid var(--bdr);border-radius:18px;padding:28px;width:500px;max-width:100%;max-height:90vh;overflow-y:auto;}
+.modal::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--grad-jn);}
+.mtitle{font-size:16px;font-weight:700;margin-bottom:20px;color:var(--t1);}
 .mact{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
-.ap{color:var(--g);font-family:var(--mono);font-weight:500;}
-.an{color:var(--re);font-family:var(--mono);font-weight:500;}
+.ap{color:var(--g);font-family:var(--mono);font-weight:600;}
+.an{color:var(--re);font-family:var(--mono);font-weight:600;}
 .am{color:var(--t1);font-family:var(--mono);}
+
 .empty{text-align:center;padding:48px 24px;color:var(--t2);font-size:13px;}
 .ei{font-size:32px;margin-bottom:8px;opacity:.3;}
-.tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;background:var(--bg3);color:var(--t2);}
+.tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;background:var(--bg3);color:var(--t2);font-weight:500;}
 .acts{display:flex;gap:6px;flex-wrap:wrap;}
 .dre-calc{background:rgba(232,57,42,0.07);border-top:1px solid rgba(232,57,42,0.2);}
 .dre-lbl{padding:9px 12px;font-size:13px;color:var(--t2);align-self:center;}
-.dre-lbl-c{color:var(--t1);font-weight:600;}
+.dre-lbl-c{color:var(--t1);font-weight:700;}
 .dre-val{padding:9px 12px;font-size:13px;font-family:var(--mono);text-align:right;align-self:center;}
-.dre-val-c{font-weight:600;font-size:14px;}
+.dre-val-c{font-weight:700;font-size:14px;}
 .dre-inp{padding:4px 8px;align-self:center;}
 .dre-inp input{text-align:right;font-family:var(--mono);font-size:13px;padding:6px 8px;}
-.upzone{border:1px dashed rgba(232,57,42,0.4);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(232,57,42,0.03);}
-.upzone:hover{border-color:var(--r);background:rgba(232,57,42,0.08);}
-.info{background:rgba(74,188,212,0.1);border:1px solid rgba(74,188,212,0.2);border-radius:8px;padding:10px 14px;font-size:12px;color:#4ABCD4;margin-bottom:16px;}
-.warn{background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:12px 16px;font-size:13px;color:#fbbf24;margin-bottom:16px;}
-.ccart{background:var(--bg1);border:1px solid var(--bdr);border-radius:12px;padding:20px;margin-bottom:16px;}
+.upzone{border:1.5px dashed rgba(232,98,42,0.45);border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--grad-jn-soft);}
+.upzone:hover{border-color:var(--o);filter:brightness(1.1);}
+.info{background:rgba(74,188,212,0.1);border:1px solid rgba(74,188,212,0.2);border-radius:9px;padding:10px 14px;font-size:12px;color:#4ABCD4;margin-bottom:16px;}
+.warn{background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:9px;padding:12px 16px;font-size:13px;color:#fbbf24;margin-bottom:16px;}
+.ccart{position:relative;background:var(--bg1);border:1px solid var(--bdr);border-radius:14px;padding:20px;margin-bottom:16px;overflow:hidden;}
+.ccart::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#4ABCD4,#1B7A8A);opacity:0.5;}
 .disc-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr);}
 .disc-row:last-child{border-bottom:none;}
 .loading{display:flex;align-items:center;justify-content:center;height:100vh;color:var(--t2);font-size:14px;flex-direction:column;gap:12px;}
-.installment-tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;background:rgba(74,188,212,.15);color:#4ABCD4;margin-left:6px;}
-.help-box{background:rgba(255,255,255,0.03);border:1px solid var(--bdr);border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:var(--t2);line-height:1.6;}
-.help-box strong{color:var(--t1);font-weight:500;}
+.installment-tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;background:rgba(74,188,212,.15);color:#4ABCD4;margin-left:6px;font-weight:600;}
+.help-box{position:relative;background:var(--grad-jn-soft);border:1px solid var(--bdr);border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:var(--t2);line-height:1.6;}
+.help-box strong{color:var(--t1);font-weight:600;}
 .help-box code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:11px;color:#4ABCD4;}
-.section-divider{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--t2);padding:8px 12px;background:var(--bg2);border-radius:6px;margin-bottom:8px;}
+.section-divider{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t2);padding:8px 12px;background:var(--bg2);border-radius:6px;margin-bottom:8px;}
+
+/* ── RESPONSIVE: TABLET ───────────────────────────────────── */
+@media (max-width: 900px){
+  .content{padding:18px 14px;}
+  .g4{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .g3{grid-template-columns:1fr 1fr;}
+  .g2{gap:10px;}
+}
+
+/* ── RESPONSIVE: MOBILE (iPhone etc) ──────────────────────── */
+/* Mobile item cards: hidden by default (desktop shows table) */
+.mobile-cards{display:none;}
+.mobile-item-card{position:relative;background:var(--bg1);border:1px solid var(--bdr);border-radius:13px;padding:14px;margin-bottom:10px;overflow:hidden;}
+.mobile-item-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--grad-jn);opacity:0.5;}
+.mic-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;}
+.mic-title{font-size:14px;font-weight:700;color:var(--t1);}
+.mic-sub{font-size:11px;color:var(--t2);margin-top:1px;}
+.mic-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-bottom:12px;}
+.mic-field{display:flex;flex-direction:column;gap:2px;font-size:12.5px;}
+.mic-flabel{font-size:9.5px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
+.mic-actions{display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--bdr);padding-top:10px;}
+.mic-actions .btn{flex:1;text-align:center;justify-content:center;}
+
+@media (max-width: 640px){
+  .topbar{height:auto;min-height:52px;padding:10px 14px;flex-wrap:wrap;gap:8px;}
+  .logo{font-size:13px;order:1;}
+  .sync{order:2;margin-left:auto;}
+  .stabs{order:4;width:100%;}
+  .stab{flex:1;text-align:center;}
+  .msel{order:3;flex:1;min-width:0;}
+  .subnav{top:auto;padding:0 10px;height:40px;}
+  .content{padding:14px 10px;}
+  .ptitle{font-size:16px;}
+  .g4{grid-template-columns:repeat(2,1fr);gap:8px;}
+  .g3{grid-template-columns:1fr;gap:8px;}
+  .g2{grid-template-columns:1fr;gap:8px;}
+  .card,.ccart{padding:14px;border-radius:12px;}
+  .stat{padding:12px;}
+  .sv{font-size:17px;}
+  .modal{padding:18px;border-radius:14px;}
+  .btn{padding:8px 13px;font-size:12.5px;}
+  /* On mobile: hide desktop table, show stacked cards instead */
+  .desktop-table{display:none;}
+  .mobile-cards{display:block;}
+}
+@media (max-width: 380px){
+  .stabs .stab{padding:5px 8px;font-size:11px;}
+  .nb{padding:6px 10px;font-size:11px;}
+}
 `;
 
 // ─── TOOLTIP ──────────────────────────────────────────────────────────────────
@@ -534,10 +639,66 @@ function ModalPayable({onSave,onClose,month,year}) {
 
 
 // ─── MODAL EDIT RECEIVABLE ────────────────────────────────────────────────────
-function ModalEditReceivable({item,onSave,onClose}) {
+// ─── RECURRENCE HELPER ───────────────────────────────────────────────────────
+const WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+function generateRecurDates(baseDate, type, count, weekday){
+  const dates=[];
+  if(!baseDate) return dates;
+  const d=parseLocalDate(baseDate);
+  for(let i=1;i<=count;i++){
+    const nd=new Date(d);
+    if(type==="monthly") nd.setMonth(nd.getMonth()+i);
+    else if(type==="weekly"){
+      // find next occurrence of weekday after current date + i*7 days
+      nd.setDate(nd.getDate()+i*7);
+      // adjust to target weekday
+      const diff=(weekday-nd.getDay()+7)%7;
+      nd.setDate(nd.getDate()+diff);
+    }
+    dates.push(nd.toISOString().split("T")[0]);
+  }
+  return dates;
+}
+
+// ─── RECURRENCE PANEL (shared UI) ────────────────────────────────────────────
+function RecurrencePanel({recur,setRecur}){
+  const {enabled,type,count,weekday}=recur;
+  return <div style={{background:"var(--bg2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 14px"}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:enabled?12:0}}>
+      <input type="checkbox" id="recur-en" checked={enabled} onChange={e=>setRecur(r=>({...r,enabled:e.target.checked}))} style={{width:"auto"}}/>
+      <label htmlFor="recur-en" style={{fontSize:13,color:"var(--t1)",cursor:"pointer",fontWeight:500}}>Repeat this entry</label>
+    </div>
+    {enabled&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <div className="g2">
+        <div className="fg"><div className="fl">Frequency</div>
+          <select value={type} onChange={e=>setRecur(r=>({...r,type:e.target.value}))}>
+            <option value="monthly">Monthly (same day)</option>
+            <option value="weekly">Weekly (choose day)</option>
+          </select>
+        </div>
+        <div className="fg"><div className="fl">{type==="monthly"?"Months":"Weeks"} to repeat</div>
+          <select value={count} onChange={e=>setRecur(r=>({...r,count:Number(e.target.value)}))}>
+            {Array.from({length:type==="monthly"?12:52},(_,i)=>i+1).map(n=><option key={n} value={n}>{n} {type==="monthly"?"month":"week"}{n>1?"s":""}</option>)}
+          </select>
+        </div>
+      </div>
+      {type==="weekly"&&<div className="fg"><div className="fl">Day of the week</div>
+        <select value={weekday} onChange={e=>setRecur(r=>({...r,weekday:Number(e.target.value)}))}>
+          {WEEKDAYS.map((d,i)=><option key={i} value={i}>{d}</option>)}
+        </select>
+      </div>}
+      <div className="info" style={{marginBottom:0}}>Will create {count} {type==="weekly"?"weekly":"monthly"} copies — each starting Pending with $0 deposited.</div>
+    </div>}
+  </div>;
+}
+
+// ─── MODAL EDIT RECEIVABLE ────────────────────────────────────────────────────
+function ModalEditReceivable({item,onSave,onAdd,onClose}) {
   const [f,setF]=useState({...item});
+  const [recur,setRecur]=useState({enabled:false,type:"monthly",count:1,weekday:5});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   const rem=Math.max(0,fmtNum(f.total)-fmtNum(f.deposited));
+  const finalStatus=rem<=0?"paid":f.status;
   return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
     <div className="mtitle">Edit Receivable — {item.client}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -551,24 +712,61 @@ function ModalEditReceivable({item,onSave,onClose}) {
         <div className="fg"><div className="fl">Total Amount ($)</div><input type="number" value={f.total} onChange={e=>s("total",e.target.value)}/></div>
         <div className="fg"><div className="fl">Already Deposited ($)</div><input type="number" value={f.deposited} onChange={e=>s("deposited",e.target.value)}/></div>
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:8}}><input type="checkbox" id="mse" checked={f.massSave||false} onChange={e=>s("massSave",e.target.checked)} style={{width:"auto"}}/><label htmlFor="mse" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Mass Save</label></div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <input type="checkbox" id="mse" checked={f.massSave||false} onChange={e=>s("massSave",e.target.checked)} style={{width:"auto"}}/>
+        <label htmlFor="mse" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Mass Save</label>
+      </div>
       <div className="fg"><div className="fl">Status</div>
         <select value={f.status} onChange={e=>s("status",e.target.value)}>
           <option value="pending">Pending</option>
           <option value="paid">Paid</option>
         </select>
       </div>
+      <RecurrencePanel recur={recur} setRecur={setRecur}/>
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
       <div style={{background:"rgba(74,188,212,0.1)",border:"1px solid rgba(74,188,212,0.2)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"#4ABCD4"}}>Balance: {fmt(rem)}</div>
     </div>
     <div className="mact">
       <button className="btn bgg" onClick={onClose}>Cancel</button>
-      <button className="btn bp" onClick={()=>{onSave({...f,remaining:rem,status:rem<=0?"paid":f.status});onClose();}}>Save Changes</button>
+      <button className="btn bp" onClick={()=>{
+        onSave({...f,remaining:rem,status:finalStatus});
+        if(recur.enabled){
+          const groupId=f.groupId||Date.now().toString();
+          const refDate=f.dueDate||f.billedDate;
+          const dates=generateRecurDates(refDate,recur.type,recur.count,recur.weekday);
+          dates.forEach((dd,i)=>{
+            const nd=parseLocalDate(dd);
+            let nb=f.billedDate;
+            if(f.billedDate&&recur.type==="monthly"){const bd=parseLocalDate(f.billedDate);bd.setMonth(bd.getMonth()+i+1);nb=bd.toISOString().split("T")[0];}
+            onAdd({...f,id:Date.now().toString()+"r"+(i+1),billedDate:nb||dd,dueDate:dd,deposited:0,remaining:fmtNum(f.total),status:"pending",groupId,installmentNum:(f.installmentNum||1)+(i+1),totalInstallments:(f.totalInstallments||1)+recur.count,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString()});
+          });
+        }
+        onClose();
+      }}>Save Changes</button>
     </div>
   </div></div>;
 }
 
 // ─── RECEIVABLES TAB ──────────────────────────────────────────────────────────
+
+// ─── MOBILE CARD ROW (used for narrow screens) ────────────────────────────────
+function MobileItemCard({title,subtitle,tag,fields,statusLabel,statusClass,actions}) {
+  return <div className="mobile-item-card">
+    <div className="mic-head">
+      <div>
+        <div className="mic-title">{title}</div>
+        {subtitle&&<div className="mic-sub">{subtitle}</div>}
+        {tag}
+      </div>
+      <span className={`badge ${statusClass}`}>{statusLabel}</span>
+    </div>
+    <div className="mic-fields">
+      {fields.map((f,i)=><div key={i} className="mic-field"><span className="mic-flabel">{f.label}</span><span className={f.cls||""} style={f.style}>{f.value}</span></div>)}
+    </div>
+    <div className="mic-actions">{actions}</div>
+  </div>;
+}
+
 function ReceivablesTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editItem,setEditItem]=useState(null);
@@ -585,10 +783,14 @@ function ReceivablesTab({data,setData,month,year}) {
   const totalDep=items.reduce((s,r)=>s+fmtNum(r.deposited),0);
   const totalRem=items.reduce((s,r)=>s+fmtNum(r.remaining),0);
   const overdue=items.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0).length;
-  const markPaid=id=>setData(d=>({...d,receivables:d.receivables.map(r=>r.id===id?{...r,status:"paid",deposited:r.total,remaining:0}:r)}));
+  const markPaid=id=>{
+    const rec=(data.receivables||[]).find(r=>r.id===id);
+    if(rec){const updated={...rec,status:"paid",deposited:rec.total,remaining:0};fbSet("receivables",id,updated);}
+    setData(d=>({...d,receivables:d.receivables.map(r=>r.id===id?{...r,status:"paid",deposited:r.total,remaining:0}:r)}));
+  };
   const del=id=>{if(!window.confirm("Are you sure you want to delete this receivable? This cannot be undone.")) return;
-    // Mark historical items as deleted in Firebase too
-    if(id.startsWith("hist_")) fbSet("receivables",id,{id,_deleted:true});
+    // Mark as deleted in Firebase (works for both hist_ and user-created items)
+    fbSet("receivables",id,{id,_deleted:true});
     setData(d=>({...d,receivables:d.receivables.filter(r=>r.id!==id)}));
   };
   const add=item=>setData(d=>({...d,receivables:[...(d.receivables||[]),item]}));
@@ -615,8 +817,8 @@ function ReceivablesTab({data,setData,month,year}) {
     <div style={{display:"flex",gap:8,marginBottom:16}}>
       {["all","pending","paid","masssave"].map(f=><button key={f} className={`btn bsm ${filter===f?"bp":"bgg"}`} onClick={()=>setFilter(f)}>{f==="all"?"All":f==="pending"?"Pending":f==="paid"?"Paid":"Mass Save"}</button>)}
     </div>
-    <div className="card" style={{padding:0,overflow:"hidden"}}>
-      {items.length===0?<div className="empty"><div className="ei">📋</div>No receivables this month</div>:(
+    {items.length===0?<div className="card empty"><div className="ei">📋</div>No receivables this month</div>:(<>
+      <div className="card desktop-table" style={{padding:0,overflow:"hidden"}}>
         <table>
           <thead><tr><th>Client</th><th>Job / Invoice #</th><th>Invoice Date</th><th>Total</th><th>Deposited</th><th>Balance</th><th>Aging</th><th>Status</th><th></th></tr></thead>
           <tbody>{items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <tr key={r.id}>
@@ -632,23 +834,126 @@ function ReceivablesTab({data,setData,month,year}) {
           </tr>;})}
           </tbody>
         </table>
-      )}
-    </div>
+      </div>
+      <div className="mobile-cards">
+        {items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <MobileItemCard key={r.id}
+          title={r.client}
+          tag={r.massSave&&<span className="tag" style={{marginTop:4}}>Mass Save</span>}
+          statusLabel={r.status==="paid"?"Paid":"Pending"}
+          statusClass={r.status==="paid"?"bg":"bam"}
+          fields={[
+            {label:"Job/Invoice",value:r.job||"—"},
+            {label:"Invoice Date",value:r.billedDate||"—"},
+            {label:"Total",value:fmt(r.total),cls:"am"},
+            {label:"Deposited",value:fmt(r.deposited),cls:"ap"},
+            {label:"Balance",value:fmt(r.remaining),cls:fmtNum(r.remaining)>0?"an":"ap"},
+            {label:"Aging",value:r.status==="paid"?"—":r.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
+          ]}
+          actions={<>{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(r)}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕ Delete</button></>}
+        />;})}
+      </div>
+    </>)}
     {showAdd&&<ModalReceivable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
-    {editItem&&<ModalEditReceivable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onClose={()=>setEditItem(null)}/>}
+    {editItem&&<ModalEditReceivable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)}/>}
   </div>;
 }
 
 // ─── CONTRACTORS TAB ──────────────────────────────────────────────────────────
+
+// ─── MODAL EDIT CONTRACTOR ───────────────────────────────────────────────────
+function ModalEditContractor({item,onSave,onAdd,onClose}) {
+  const [f,setF]=useState({...item});
+  const [recur,setRecur]=useState({enabled:false,type:"monthly",count:1,weekday:5});
+  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
+    <div className="mtitle">Edit — {item.name}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div className="fg"><div className="fl">Name</div><input value={f.name} onChange={e=>s("name",e.target.value)}/></div>
+      <div className="fg"><div className="fl">Job / Invoice #</div><input value={f.job||""} onChange={e=>s("job",e.target.value)} placeholder="e.g. HVAC install or Invoice #1234"/></div>
+      <div className="g2">
+        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",e.target.value)}/></div>
+        <div className="fg"><div className="fl">Payment Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
+      </div>
+      <div className="fg"><div className="fl">Status</div>
+        <select value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
+      </div>
+      <RecurrencePanel recur={recur} setRecur={setRecur}/>
+      <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
+    </div>
+    <div className="mact">
+      <button className="btn bgg" onClick={onClose}>Cancel</button>
+      <button className="btn bp" onClick={()=>{
+        onSave({...f});
+        if(recur.enabled&&f.dueDate){
+          const groupId=f.groupId||Date.now().toString();
+          const dates=generateRecurDates(f.dueDate,recur.type,recur.count,recur.weekday);
+          dates.forEach((dd,i)=>{
+            const nd=parseLocalDate(dd);
+            onAdd({...f,id:Date.now().toString()+"c"+(i+1),dueDate:dd,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString(),status:"pending",groupId,installmentNum:(f.installmentNum||1)+(i+1),totalInstallments:(f.totalInstallments||1)+recur.count});
+          });
+        }
+        onClose();
+      }}>Save</button>
+    </div>
+  </div></div>;
+}
+
+// ─── MODAL EDIT PAYABLE ───────────────────────────────────────────────────────
+function ModalEditPayable({item,onSave,onAdd,onClose}) {
+  const [f,setF]=useState({...item});
+  const [recur,setRecur]=useState({enabled:false,type:"monthly",count:1,weekday:5});
+  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
+    <div className="mtitle">Edit — {item.description}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div className="fg"><div className="fl">Description</div><input value={f.description} onChange={e=>s("description",e.target.value)}/></div>
+      <div className="fg"><div className="fl">Vendor</div><input value={f.vendor||""} onChange={e=>s("vendor",e.target.value)}/></div>
+      <div className="g2">
+        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",Number(e.target.value))}/></div>
+        <div className="fg"><div className="fl">Due Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
+      </div>
+      <div className="fg"><div className="fl">Category</div>
+        <select value={f.category||"custos_fixos"} onChange={e=>s("category",e.target.value)}>
+          {Object.entries(DRE_LABELS).filter(([k])=>!["receita_liquida","margem","lucro_op","lucro_ir","rev_operacional","rev_genn","impostos"].includes(k)).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+      <div className="fg"><div className="fl">Status</div>
+        <select value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
+      </div>
+      <RecurrencePanel recur={recur} setRecur={setRecur}/>
+      <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
+    </div>
+    <div className="mact">
+      <button className="btn bgg" onClick={onClose}>Cancel</button>
+      <button className="btn bp" onClick={()=>{
+        onSave({...f});
+        if(recur.enabled&&f.dueDate){
+          const groupId=f.groupId||Date.now().toString();
+          const dates=generateRecurDates(f.dueDate,recur.type,recur.count,recur.weekday);
+          dates.forEach((dd,i)=>{
+            const nd=parseLocalDate(dd);
+            onAdd({...f,id:Date.now().toString()+"p"+(i+1),dueDate:dd,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString(),status:"pending",groupId,installmentNum:(f.installmentNum||1)+(i+1),totalInstallments:(f.totalInstallments||1)+recur.count});
+          });
+        }
+        onClose();
+      }}>Save</button>
+    </div>
+  </div></div>;
+}
+
 function ContractorsTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editItem,setEditItem]=useState(null);
-  const items=useMemo(()=>(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.contractors,month,year]);
+  const items=useMemo(()=>(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.dueDate||r.createdAt)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.contractors,month,year]);
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
-  const markPaid=id=>setData(d=>({...d,contractors:d.contractors.map(c=>c.id===id?{...c,status:"paid",paidAt:new Date().toISOString()}:c)}));
-  const del=id=>{if(!window.confirm("Are you sure you want to delete this payment?")) return;setData(d=>({...d,contractors:d.contractors.filter(c=>c.id!==id)}));};
+  const markPaid=id=>{
+    const con=(data.contractors||[]).find(c=>c.id===id);
+    if(con){const updated={...con,status:"paid",paidAt:new Date().toISOString()};fbSet("contractors",id,updated);}
+    setData(d=>({...d,contractors:d.contractors.map(c=>c.id===id?{...c,status:"paid",paidAt:new Date().toISOString()}:c)}));
+  };
+  const del=id=>{if(!window.confirm("Are you sure you want to delete this payment?")) return;fbSet("contractors",id,{id,_deleted:true});setData(d=>({...d,contractors:d.contractors.filter(c=>c.id!==id)}));};
   const add=item=>setData(d=>({...d,contractors:[...(d.contractors||[]),item]}));
   const update=item=>{fbSet("contractors",item.id,item);setData(d=>({...d,contractors:d.contractors.map(c=>c.id===item.id?{...c,...item}:c)}));};
   return <div>
@@ -669,8 +974,8 @@ function ContractorsTab({data,setData,month,year}) {
       <div className="stat"><div className="sl">Month Total</div><div className="sv" style={{color:C.blue}}>{fmt(pending+paid)}</div></div>
       <div className="stat"><div className="sl">Overdue</div><div className="sv" style={{color:overdue>0?C.red:C.text2}}>{overdue}</div><div className="ss">unpaid</div></div>
     </div>
-    <div className="card" style={{padding:0,overflow:"hidden"}}>
-      {items.length===0?<div className="empty"><div className="ei">🔧</div>No payments this month</div>:(
+    {items.length===0?<div className="card empty"><div className="ei">🔧</div>No payments this month</div>:(<>
+      <div className="card desktop-table" style={{padding:0,overflow:"hidden"}}>
         <table>
           <thead><tr><th>Subcontractor</th><th>Job / Invoice #</th><th>Amount</th><th>Date</th><th>Aging</th><th>Status</th><th></th></tr></thead>
           <tbody>{items.sort((a,b)=>a.status==="paid"?1:-1).map(c=>{const ag=agingLabel(agingDays(c.dueDate));return <tr key={c.id}>
@@ -684,23 +989,24 @@ function ContractorsTab({data,setData,month,year}) {
           </tr>;})}
           </tbody>
         </table>
-      )}
-    </div>
-    {showAdd&&<ModalContractor onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
-    {editItem&&<div className="overlay" onClick={()=>setEditItem(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
-      <div className="mtitle">Edit — {editItem.name}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div className="fg"><div className="fl">Name</div><input value={editItem.name} onChange={e=>setEditItem(p=>({...p,name:e.target.value}))}/></div>
-        <div className="fg"><div className="fl">Job</div><input value={editItem.job||""} onChange={e=>setEditItem(p=>({...p,job:e.target.value}))}/></div>
-        <div className="g2">
-          <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={editItem.amount} onChange={e=>setEditItem(p=>({...p,amount:e.target.value}))}/></div>
-          <div className="fg"><div className="fl">Payment Date</div><input type="date" value={editItem.dueDate||""} onChange={e=>setEditItem(p=>({...p,dueDate:e.target.value}))}/></div>
-        </div>
-        <div className="fg"><div className="fl">Status</div><select value={editItem.status} onChange={e=>setEditItem(p=>({...p,status:e.target.value}))}><option value="pending">Pending</option><option value="paid">Paid</option></select></div>
-        <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={editItem.notes||""} onChange={e=>setEditItem(p=>({...p,notes:e.target.value}))}/></div>
       </div>
-      <div className="mact"><button className="btn bgg" onClick={()=>setEditItem(null)}>Cancel</button><button className="btn bp" onClick={()=>{update(editItem);setEditItem(null);}}>Save Changes</button></div>
-    </div></div>}
+      <div className="mobile-cards">
+        {items.sort((a,b)=>a.status==="paid"?1:-1).map(c=>{const ag=agingLabel(agingDays(c.dueDate));return <MobileItemCard key={c.id}
+          title={c.name}
+          statusLabel={c.status==="paid"?"Paid":"Pending"}
+          statusClass={c.status==="paid"?"bg":"br"}
+          fields={[
+            {label:"Job/Invoice",value:c.job||"—"},
+            {label:"Amount",value:fmt(c.amount),cls:"am"},
+            {label:"Date",value:c.dueDate||"—"},
+            {label:"Aging",value:c.status==="paid"?"—":c.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
+          ]}
+          actions={<>{c.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(c.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(c)}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(c.id)}>✕ Delete</button></>}
+        />;})}
+      </div>
+    </>)}
+    {showAdd&&<ModalContractor onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
+    {editItem&&<ModalEditContractor item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)}/>}
   </div>;
 }
 
@@ -708,12 +1014,16 @@ function ContractorsTab({data,setData,month,year}) {
 function PayablesTab({data,setData,month,year}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editItem,setEditItem]=useState(null);
-  const items=useMemo(()=>(data.payables||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.payables,month,year]);
+  const items=useMemo(()=>(data.payables||[]).filter(r=>{const d=parseLocalDate(r.dueDate||r.createdAt)||new Date();return d.getMonth()===month&&d.getFullYear()===year;}),[data.payables,month,year]);
   const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
-  const markPaid=id=>setData(d=>({...d,payables:d.payables.map(p=>p.id===id?{...p,status:"paid",paidAt:new Date().toISOString()}:p)}));
-  const del=id=>{if(!window.confirm("Are you sure you want to delete this payable?")) return;setData(d=>({...d,payables:d.payables.filter(p=>p.id!==id)}));};
+  const markPaid=id=>{
+    const pay=(data.payables||[]).find(p=>p.id===id);
+    if(pay){const updated={...pay,status:"paid",paidAt:new Date().toISOString()};fbSet("payables",id,updated);}
+    setData(d=>({...d,payables:d.payables.map(p=>p.id===id?{...p,status:"paid",paidAt:new Date().toISOString()}:p)}));
+  };
+  const del=id=>{if(!window.confirm("Are you sure you want to delete this payable?")) return;fbSet("payables",id,{id,_deleted:true});setData(d=>({...d,payables:d.payables.filter(p=>p.id!==id)}));};
   const add=item=>setData(d=>({...d,payables:[...(d.payables||[]),item]}));
   const update=item=>{fbSet("payables",item.id,item);setData(d=>({...d,payables:d.payables.map(p=>p.id===item.id?{...p,...item}:p)}));};
   return <div>
@@ -735,8 +1045,8 @@ function PayablesTab({data,setData,month,year}) {
       <div className="stat"><div className="sl">Month Total</div><div className="sv" style={{color:C.blue}}>{fmt(pending+paid)}</div></div>
       <div className="stat"><div className="sl">Overdue</div><div className="sv" style={{color:overdue>0?C.red:C.text2}}>{overdue}</div><div className="ss">unpaid</div></div>
     </div>
-    <div className="card" style={{padding:0,overflow:"hidden"}}>
-      {items.length===0?<div className="empty"><div className="ei">🧾</div>No payables this month</div>:(
+    {items.length===0?<div className="card empty"><div className="ei">🧾</div>No payables this month</div>:(<>
+      <div className="card desktop-table" style={{padding:0,overflow:"hidden"}}>
         <table>
           <thead><tr><th>Description</th><th>Vendor</th><th>Category</th><th>Amount</th><th>Due Date</th><th>Aging</th><th>Status</th><th></th></tr></thead>
           <tbody>{items.sort((a,b)=>a.status==="paid"?1:-1).map(p=>{const ag=p.status==="paid"?{label:"Paid",color:C.green}:agingLabel(agingDays(p.dueDate));return <tr key={p.id} style={{opacity:p.status==="paid"?0.6:1}}>
@@ -751,28 +1061,25 @@ function PayablesTab({data,setData,month,year}) {
           </tr>;})}
           </tbody>
         </table>
-      )}
-    </div>
-    {showAdd&&<ModalPayable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
-    {editItem&&<div className="overlay" onClick={()=>setEditItem(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
-      <div className="mtitle">Edit — {editItem.description}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div className="fg"><div className="fl">Description</div><input value={editItem.description} onChange={e=>setEditItem(p=>({...p,description:e.target.value}))}/></div>
-        <div className="fg"><div className="fl">Vendor</div><input value={editItem.vendor||""} onChange={e=>setEditItem(p=>({...p,vendor:e.target.value}))}/></div>
-        <div className="g2">
-          <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={editItem.amount} onChange={e=>setEditItem(p=>({...p,amount:Number(e.target.value)}))}/></div>
-          <div className="fg"><div className="fl">Due Date</div><input type="date" value={editItem.dueDate||""} onChange={e=>setEditItem(p=>({...p,dueDate:e.target.value}))}/></div>
-        </div>
-        <div className="fg"><div className="fl">Category</div>
-          <select value={editItem.category||"custos_fixos"} onChange={e=>setEditItem(p=>({...p,category:e.target.value}))}>
-            {Object.entries(DRE_LABELS).filter(([k])=>!["receita_liquida","margem","lucro_op","lucro_ir","rev_operacional","rev_genn","impostos"].includes(k)).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-          </select>
-        </div>
-        <div className="fg"><div className="fl">Status</div><select value={editItem.status} onChange={e=>setEditItem(p=>({...p,status:e.target.value}))}><option value="pending">Pending</option><option value="paid">Paid</option></select></div>
-        <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={editItem.notes||""} onChange={e=>setEditItem(p=>({...p,notes:e.target.value}))}/></div>
       </div>
-      <div className="mact"><button className="btn bgg" onClick={()=>setEditItem(null)}>Cancel</button><button className="btn bp" onClick={()=>{update(editItem);setEditItem(null);}}>Save Changes</button></div>
-    </div></div>}
+      <div className="mobile-cards">
+        {items.sort((a,b)=>a.status==="paid"?1:-1).map(p=>{const ag=p.status==="paid"?{label:"Paid",color:C.green}:agingLabel(agingDays(p.dueDate));return <MobileItemCard key={p.id}
+          title={p.description}
+          statusLabel={p.status==="paid"?"Paid":"Pending"}
+          statusClass={p.status==="paid"?"bg":"br"}
+          fields={[
+            {label:"Vendor",value:p.vendor||"—"},
+            {label:"Category",value:DRE_LABELS[p.category]?.split(" ").slice(0,2).join(" ")||p.category},
+            {label:"Amount",value:fmt(p.amount),cls:"am"},
+            {label:"Due Date",value:p.dueDate||"—"},
+            {label:"Aging",value:p.status==="paid"?"—":p.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
+          ]}
+          actions={<>{p.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(p.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(p)}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(p.id)}>✕ Delete</button></>}
+        />;})}
+      </div>
+    </>)}
+    {showAdd&&<ModalPayable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
+    {editItem&&<ModalEditPayable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)}/>}
   </div>;
 }
 
@@ -795,12 +1102,12 @@ function DRETab({data,setData,month,year}) {
   // Compute realized with adjustments
   const realizedRaw={...baseData};
   DRE_INPUT_KEYS.forEach(k=>{realizedRaw[k]=fmtNum(baseData[k])+fmtNum(adjData[k]);});
-  const realized=computeDRE(realizedRaw);
+  const realized=computeDRE(realizedRaw,mk);
 
   // Compute economic
   const ecoIn={...realizedRaw};
   DRE_INPUT_KEYS.forEach(k=>{ecoIn[k]=fmtNum(realizedRaw[k])+fmtNum(dreEco[k]);});
-  const economic=computeDRE(ecoIn);
+  const economic=computeDRE(ecoIn,mk);
 
   const upload=(e,type)=>{
     const file=e.target.files?.[0];if(!file) return;
@@ -836,7 +1143,8 @@ function DRETab({data,setData,month,year}) {
       — Expenses: <code>Jobber → Reports → Expense Reports → Expenses → Filter: This Month</code><br/><br/>
       Upload both CSVs below. The <strong>Realizada</strong> tab will populate automatically.<br/>
       Use <strong>Manual Adj.</strong> column to make retroactive corrections (e.g. a payment made in July that belongs to June costs) — these adjustments are saved separately and will NOT be overwritten when you re-upload the CSV.<br/>
-      The <strong>Econômica</strong> tab shows Realizada + your adjustments based on Pipedrive data for undelivered jobs. Fill in the blue columns at month end.
+      The <strong>Econômica</strong> tab shows Realizada + your adjustments based on Pipedrive data for undelivered jobs. Fill in the blue columns at month end.<br/><br/>
+      <strong>Receita Recorrente GENN:</strong> starting May 2026, this line is informational only — it does NOT add to total revenue. It's already included in the Receita Operacional total from the CSV; this row just shows how much of that total came from GENN.
     </div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
       <div className="ptitle">DRE — {MONTHS_EN[month]} {year}</div>
@@ -961,7 +1269,7 @@ function CashFlowTab({data,setData,month,year}) {
   const todayBal=chartData.find(d=>d.dayKey===todayStr)?.balance||opening;
 
   // DRE Estimate computed
-  const estimateComputed=computeDRE(dreEstimate);
+  const estimateComputed=computeDRE(dreEstimate,mk);
   const setEst=(k,v)=>setData(d=>({...d,dreEstimate:{...(d.dreEstimate||{}),[mk]:{...(d.dreEstimate?.[mk]||{}),[k]:v}}}));
   const clearEstimate=()=>setData(d=>({...d,dreEstimate:{...(d.dreEstimate||{}),[mk]:{}}}));
 
@@ -1093,7 +1401,7 @@ function CashFlowTab({data,setData,month,year}) {
           <div style={{padding:"8px 12px",fontSize:11,color:"#F5A623",textTransform:"uppercase",letterSpacing:".5px",textAlign:"right"}}>Estimate</div>
         </div>
         {DRE_STRUCTURE.map(({key,type})=>{
-          const realized2=computeDRE(data.dreData?.[mk]||HIST_R[mk]||{});
+          const realized2=computeDRE(data.dreData?.[mk]||HIST_R[mk]||{},mk);
           const rv=realized2[key];const ev=estimateComputed[key];
           const isCalc=type==="calc";
           if(isCalc) return <div key={key} style={{display:"grid",gridTemplateColumns:"1fr 140px 140px",background:"rgba(232,57,42,0.05)",borderTop:"1px solid rgba(232,57,42,0.15)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
@@ -1127,13 +1435,13 @@ function OperationalDashboard({data,month,year}) {
   if(dreType==="economica") {
     DRE_INPUT_KEYS.forEach(k=>{displayData[k]=fmtNum(realizedRaw[k])+fmtNum(dreEcoExtra[k]);});
   }
-  const computed=computeDRE(displayData);
+  const computed=computeDRE(displayData,mk);
   const receivables=(data.receivables||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
-  const contractors=(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
+  const contractors=(data.contractors||[]).filter(r=>{const d=parseLocalDate(r.dueDate||r.createdAt)||new Date();return d.getMonth()===month&&d.getFullYear()===year;});
   const pendingRec=receivables.filter(r=>r.status!=="paid").reduce((s,r)=>s+fmtNum(r.remaining),0);
   const pendingCon=contractors.filter(c=>c.status!=="paid").reduce((s,c)=>s+fmtNum(c.amount),0);
   const overdueRec=receivables.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0);
-  const overduePay=(data.payables||[]).filter(p=>{const d=parseLocalDate(p.createdAt||p.dueDate)||new Date();return d.getMonth()===month&&d.getFullYear()===year&&p.status!=="paid"&&agingDays(p.dueDate)>0;});
+  const overduePay=(data.payables||[]).filter(p=>{const d=parseLocalDate(p.dueDate||p.createdAt)||new Date();return d.getMonth()===month&&d.getFullYear()===year&&p.status!=="paid"&&agingDays(p.dueDate)>0;});
   const margin=computed.receita_liquida>0?Math.round(computed.margem/computed.receita_liquida*100):0;
   return <div>
     <RolloverBanner month={month} year={year}/>
@@ -1302,7 +1610,7 @@ function AnalyticsDashboard({data,month,year}) {
   const seriesData=useMemo(()=>months.map(({year:y,month:m,label})=>{
     const d=getDREForMonth(data,y,m,dreType==="economica"?"eco":"real");
     if(!d) return {label,receita:0,margem:0,lucro:0,cogs:0,mkt:0,subs:0,custos:0,margem_pct:0,subs_pct:0};
-    const c=computeDRE(d);
+    const c=computeDRE(d,`${y}-${m}`);
     const mp=c.receita_liquida>0?Math.round(c.margem/c.receita_liquida*100):0;
     const sp=c.receita_liquida>0?Math.round(fmtNum(d.cogs_subs)/c.receita_liquida*100):0;
     const cogs=fmtNum(d.cogs_materials)+fmtNum(d.cogs_subs)+fmtNum(d.cogs_fuel)+fmtNum(d.cogs_genn);
@@ -1316,7 +1624,7 @@ function AnalyticsDashboard({data,month,year}) {
     const labels={receita:"Revenue",margem:"Contribution Margin",lucro:"Net Income",cogs:"Total COGS",mkt:"Marketing",subs:"Subcontractors",custos:"Fixed Expenses"};
     return keys.map(k=>{const diff=prev[k]!==0?Math.round((curr[k]-prev[k])/Math.abs(prev[k])*100):0;return{key:k,label:labels[k],curr:curr[k],prev:prev[k],diff};}).filter(d=>Math.abs(d.diff)>=10).sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
   },[seriesData]);
-  const cumData=useMemo(()=>{let cR=0,cM=0,cL=0;return months.map(({year:y,month:m,label})=>{const d=getDREForMonth(data,y,m,dreType==="economica"?"eco":"real");if(!d) return {label,cumReceita:cR,cumMargem:cM,cumLucro:cL};const c=computeDRE(d);cR+=c.receita_liquida;cM+=c.margem;cL+=c.lucro_ir;return {label,cumReceita:Math.round(cR),cumMargem:Math.round(cM),cumLucro:Math.round(cL)};});},[months,data,dreType]);
+  const cumData=useMemo(()=>{let cR=0,cM=0,cL=0;return months.map(({year:y,month:m,label})=>{const d=getDREForMonth(data,y,m,dreType==="economica"?"eco":"real");if(!d) return {label,cumReceita:cR,cumMargem:cM,cumLucro:cL};const c=computeDRE(d,`${y}-${m}`);cR+=c.receita_liquida;cM+=c.margem;cL+=c.lucro_ir;return {label,cumReceita:Math.round(cR),cumMargem:Math.round(cM),cumLucro:Math.round(cL)};});},[months,data,dreType]);
   const totalReceita=seriesData.reduce((s,d)=>s+d.receita,0);
   const totalMargem=seriesData.reduce((s,d)=>s+d.margem,0);
   const totalLucro=seriesData.reduce((s,d)=>s+d.lucro,0);
@@ -1329,18 +1637,20 @@ function AnalyticsDashboard({data,month,year}) {
         {["realizada","economica"].map(t=><button key={t} style={{background:dreType===t?"#1B7A8A":"transparent",color:dreType===t?"white":C.text2,border:"none",padding:"5px 12px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans'",fontWeight:500}} onClick={()=>setDreType(t)}>{t==="realizada"?"Realizada":"Econômica"}</button>)}
       </div>
     </div>
-    <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16,flexWrap:"wrap",background:"var(--bg2)",padding:"12px 16px",borderRadius:10}}>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <span style={{fontSize:12,color:C.text2}}>From:</span>
-        <select className="msel" value={fromMonth} onChange={e=>setFromMonth(Number(e.target.value))}>{MONTHS_EN.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
-        <select className="msel" value={fromYear} onChange={e=>setFromYear(Number(e.target.value))}>{[2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
+    <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16,background:"var(--bg2)",padding:"14px 16px",borderRadius:10,border:"1px solid var(--bdr)"}}>
+      <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:C.text2,fontWeight:600,minWidth:36}}>From:</span>
+          <select className="msel" value={fromMonth} onChange={e=>setFromMonth(Number(e.target.value))}>{MONTHS_EN.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+          <select className="msel" value={fromYear} onChange={e=>setFromYear(Number(e.target.value))}>{[2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:C.text2,fontWeight:600,minWidth:24}}>To:</span>
+          <select className="msel" value={toMonth} onChange={e=>setToMonth(Number(e.target.value))}>{MONTHS_EN.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
+          <select className="msel" value={toYear} onChange={e=>setToYear(Number(e.target.value))}>{[2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
+        </div>
       </div>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <span style={{fontSize:12,color:C.text2}}>To:</span>
-        <select className="msel" value={toMonth} onChange={e=>setToMonth(Number(e.target.value))}>{MONTHS_EN.map((m,i)=><option key={i} value={i}>{m}</option>)}</select>
-        <select className="msel" value={toYear} onChange={e=>setToYear(Number(e.target.value))}>{[2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}</select>
-      </div>
-      <span style={{fontSize:12,color:C.text2}}>{months.length} {months.length===1?"month":"months"} selected</span>
+      <span style={{fontSize:11.5,color:C.text2}}>{months.length} {months.length===1?"month":"months"} selected</span>
     </div>
     <div className="g4" style={{marginBottom:16}}>
       <div className="stat"><div className="sl">Total Revenue</div><div className="sv" style={{color:C.blue}}>{fmtK(totalReceita)}</div><div className="ss">{months.length} months</div></div>
@@ -1454,8 +1764,8 @@ export default function App() {
       setDataRaw(p=>({...p,receivables:[...histItems,...fbRecs.filter(r=>!r._deleted)]}));
       check();
     },(e)=>{console.error(e);check();}));
-    unsubs.push(onSnapshot(collection(db,"contractors"),snap=>{setDataRaw(p=>({...p,contractors:snap.docs.map(d=>({id:d.id,...d.data()}))}));check();},(e)=>{console.error(e);check();}));
-    unsubs.push(onSnapshot(collection(db,"payables"),snap=>{setDataRaw(p=>({...p,payables:snap.docs.map(d=>({id:d.id,...d.data()}))}));check();},(e)=>{console.error(e);check();}));
+    unsubs.push(onSnapshot(collection(db,"contractors"),snap=>{setDataRaw(p=>({...p,contractors:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},(e)=>{console.error(e);check();}));
+    unsubs.push(onSnapshot(collection(db,"payables"),snap=>{setDataRaw(p=>({...p,payables:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},(e)=>{console.error(e);check();}));
     unsubs.push(onSnapshot(collection(db,"dre"),snap=>{
       const dreData={},dreEcoExtra={},dreAdj={},dreEstimate={},cashFlowDaily={},cashFlowSettings={};
       snap.docs.forEach(d=>{
