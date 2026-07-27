@@ -649,6 +649,122 @@ function ModalReceivableV2({item,allItems,onSave,onAdd,onClose,month,year}) {
   </div></div>;
 }
 
+
+// ─── MOBILE CARD ROW (used for narrow screens) ────────────────────────────────
+function MobileItemCard({title,subtitle,tag,fields,statusLabel,statusClass,actions}) {
+  return <div className="mobile-item-card">
+    <div className="mic-head">
+      <div>
+        <div className="mic-title">{title}</div>
+        {subtitle&&<div className="mic-sub">{subtitle}</div>}
+        {tag}
+      </div>
+      <span className={`badge ${statusClass}`}>{statusLabel}</span>
+    </div>
+    <div className="mic-fields">
+      {fields.map((f,i)=><div key={i} className="mic-field"><span className="mic-flabel">{f.label}</span><span className={f.cls||""} style={f.style}>{f.value}</span></div>)}
+    </div>
+    <div className="mic-actions">{actions}</div>
+  </div>;
+}
+
+// ─── RECEIVABLES TAB ──────────────────────────────────────────────────────────
+function ReceivablesTab({data,setData,month,year}) {
+  const [showModal,setShowModal]=useState(false);
+  const [editItem,setEditItem]=useState(null);
+  const [filter,setFilter]=useState("all");
+  const items=useMemo(()=>(data.receivables||[]).filter(r=>{
+    const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();
+    if(d.getMonth()!==month||d.getFullYear()!==year) return false;
+    if(filter==="pending") return r.status!=="paid";
+    if(filter==="paid") return r.status==="paid";
+    if(filter==="masssave") return r.massSave;
+    return true;
+  }),[data.receivables,month,year,filter]);
+  const totalSold=items.reduce((s,r)=>s+fmtNum(r.total),0);
+  const totalDep=items.reduce((s,r)=>s+fmtNum(r.deposited),0);
+  const totalRem=items.reduce((s,r)=>s+fmtNum(r.remaining),0);
+  const overdue=items.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0).length;
+  const markPaid=id=>{
+    const rec=(data.receivables||[]).find(r=>r.id===id);
+    if(rec){const updated={...rec,status:"paid",deposited:rec.total,remaining:0};fbSet("receivables",id,updated);}
+    setData(d=>({...d,receivables:d.receivables.map(r=>r.id===id?{...r,status:"paid",deposited:r.total,remaining:0}:r)}));
+  };
+  const del=id=>{if(!window.confirm("Are you sure you want to delete this receivable? This cannot be undone.")) return;
+    fbSet("receivables",id,{id,_deleted:true});
+    setData(d=>({...d,receivables:d.receivables.filter(r=>r.id!==id)}));
+  };
+  const add=item=>setData(d=>({...d,receivables:[...(d.receivables||[]),item]}));
+  const update=item=>{fbSet("receivables",item.id,item);setData(d=>({...d,receivables:d.receivables.map(r=>r.id===item.id?{...r,...item}:r)}));};
+  return <div>
+    <div className="help-box">
+      <strong>📋 Receivables — How to use:</strong><br/>
+      Add a new entry for each job that was invoiced. Fill in the client name, job description, total amount and the monthly payment schedule.<br/>
+      — When a client pays, click <strong>✓</strong> to mark it as paid.<br/>
+      — Use <strong>Mass Save</strong> for jobs that include a Mass Save incentive program.<br/>
+      — Click <strong>✎</strong> to edit any entry and see all installments for that client.
+    </div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+      <div className="ptitle">Receivables</div>
+      <button className="btn bp" onClick={()=>{setEditItem(null);setShowModal(true);}}>+ New</button>
+    </div>
+    <div className="psub">{MONTHS_EN[month]} {year}</div>
+    <div className="g4">
+      <div className="stat"><div className="sl">Total Invoiced</div><div className="sv" style={{color:C.blue}}>{fmt(totalSold)}</div></div>
+      <div className="stat"><div className="sl">Received</div><div className="sv" style={{color:C.green}}>{fmt(totalDep)}</div></div>
+      <div className="stat"><div className="sl">Outstanding</div><div className="sv" style={{color:C.amber}}>{fmt(totalRem)}</div></div>
+      <div className="stat"><div className="sl">Overdue</div><div className="sv" style={{color:overdue>0?C.red:C.text2}}>{overdue}</div><div className="ss">clients</div></div>
+    </div>
+    <div style={{display:"flex",gap:8,marginBottom:16}}>
+      {["all","pending","paid","masssave"].map(f=><button key={f} className={`btn bsm ${filter===f?"bp":"bgg"}`} onClick={()=>setFilter(f)}>{f==="all"?"All":f==="pending"?"Pending":f==="paid"?"Paid":"Mass Save"}</button>)}
+    </div>
+    {items.length===0?<div className="card empty"><div className="ei">📋</div>No receivables this month</div>:(<>
+      <div className="card desktop-table" style={{padding:0,overflow:"hidden"}}>
+        <table>
+          <thead><tr><th>Client</th><th>Job / Invoice #</th><th>Due Date</th><th>Total</th><th>Deposited</th><th>Balance</th><th>Aging</th><th>Status</th><th></th></tr></thead>
+          <tbody>{items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <tr key={r.id}>
+            <td><div style={{fontWeight:500}}>{r.client}{r.totalInstallments>1&&<span className="installment-tag">{r.installmentNum}/{r.totalInstallments}</span>}</div>{r.massSave&&<span className="tag" style={{marginTop:2}}>Mass Save</span>}</td>
+            <td style={{color:C.text2,maxWidth:140}}>{r.job}</td>
+            <td style={{color:C.text2,fontSize:12,fontFamily:"var(--mono)"}}>{r.dueDate||"—"}</td>
+            <td><span className="am">{fmt(r.total)}</span></td>
+            <td><span className="ap">{fmt(r.deposited)}</span></td>
+            <td><span className={fmtNum(r.remaining)>0?"an":"ap"}>{fmt(r.remaining)}</span></td>
+            <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{r.status==="paid"?"—":r.dueDate?ag.label:"—"}</span></td>
+            <td><span className={`badge ${r.status==="paid"?"bg":"bam"}`}>{r.status==="paid"?"Paid":"Pending"}</span></td>
+            <td><div className="acts">{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓</button>}<button className="btn bsm bgg" onClick={()=>{setEditItem(r);setShowModal(true);}} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕</button></div></td>
+          </tr>;})}
+          </tbody>
+        </table>
+      </div>
+      <div className="mobile-cards">
+        {items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <MobileItemCard key={r.id}
+          title={r.client}
+          tag={r.massSave&&<span className="tag" style={{marginTop:4}}>Mass Save</span>}
+          statusLabel={r.status==="paid"?"Paid":"Pending"}
+          statusClass={r.status==="paid"?"bg":"bam"}
+          fields={[
+            {label:"Job/Invoice",value:r.job||"—"},
+            {label:"Due Date",value:r.dueDate||"—"},
+            {label:"Total",value:fmt(r.total),cls:"am"},
+            {label:"Deposited",value:fmt(r.deposited),cls:"ap"},
+            {label:"Balance",value:fmt(r.remaining),cls:fmtNum(r.remaining)>0?"an":"ap"},
+            {label:"Aging",value:r.status==="paid"?"—":r.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
+          ]}
+          actions={<>{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>{setEditItem(r);setShowModal(true);}}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕ Delete</button></>}
+        />;})}
+      </div>
+    </>)}
+    {showModal&&<ModalReceivableV2
+      item={editItem}
+      allItems={data.receivables||[]}
+      onSave={item=>{update(item);}}
+      onAdd={add}
+      onClose={()=>{setShowModal(false);setEditItem(null);}}
+      month={month} year={year}
+    />}
+  </div>;
+}
+
 // ─── MODAL EDIT CONTRACTOR ───────────────────────────────────────────────────
 function ModalEditContractor({item,onSave,onAdd,onClose}) {
   const [f,setF]=useState({...item});
