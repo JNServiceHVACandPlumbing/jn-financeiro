@@ -513,58 +513,61 @@ function BasisNotice({type}) {
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 // ─── MODAL RECEIVABLE (unified create + edit with month table) ────────────────
-function ModalReceivableV2({item,allItems,onSave,onSaveAll,onAdd,onClose,month,year}) {
+function ModalReceivableV2({item,allItems,onSave,onAdd,onClose,month,year}) {
   const isEdit=!!item;
   const groupId=item?.groupId||Date.now().toString();
 
-  // Get all items in the same group (for edit mode)
   const groupItems=isEdit&&item.groupId
     ?allItems.filter(r=>r.groupId===item.groupId).sort((a,b)=>new Date(a.dueDate||a.createdAt)-new Date(b.dueDate||b.createdAt))
     :isEdit?[item]:[];
 
-  // Client/job info (shared)
   const [client,setClient]=useState(item?.client||"");
   const [job,setJob]=useState(item?.job||"");
   const [massSave,setMassSave]=useState(item?.massSave||false);
   const [notes,setNotes]=useState(item?.notes||"");
+  const [totalAmount,setTotalAmount]=useState(()=>{
+    if(isEdit&&groupItems.length>0) return groupItems.reduce((s,r)=>s+fmtNum(r.total),0)||fmtNum(item?.total)||0;
+    if(isEdit) return fmtNum(item?.total)||0;
+    return 0;
+  });
 
-  // Month rows: array of {id, dueDate, total, deposited, status}
   const initRows=()=>{
     if(isEdit&&groupItems.length>0){
-      return groupItems.map(r=>({id:r.id,dueDate:r.dueDate||"",total:r.total||0,deposited:r.deposited||0,status:r.status||"pending",isExisting:true}));
+      return groupItems.map(r=>({id:r.id,dueDate:r.dueDate||"",deposited:r.deposited||0,status:r.status||"pending",isExisting:true}));
     }
-    if(isEdit) return [{id:item.id,dueDate:item.dueDate||"",total:item.total||0,deposited:item.deposited||0,status:item.status||"pending",isExisting:true}];
-    // New: start with one empty row defaulting to current month 15th
+    if(isEdit) return [{id:item.id,dueDate:item.dueDate||"",deposited:item.deposited||0,status:item.status||"pending",isExisting:true}];
     const defaultDue=`${year}-${String(month+1).padStart(2,"0")}-15`;
-    return [{id:null,dueDate:defaultDue,total:0,deposited:0,status:"pending",isExisting:false}];
+    return [{id:null,dueDate:defaultDue,deposited:0,status:"pending",isExisting:false}];
   };
   const [rows,setRows]=useState(initRows);
 
   const updateRow=(idx,k,v)=>setRows(rs=>rs.map((r,i)=>i===idx?{...r,[k]:v}:r));
-
   const addRow=()=>{
     const last=rows[rows.length-1];
     let nextDue="";
-    if(last.dueDate){
-      try{const d=parseLocalDate(last.dueDate);d.setMonth(d.getMonth()+1);nextDue=d.toISOString().split("T")[0];}catch(e){}
-    }
-    setRows(rs=>[...rs,{id:null,dueDate:nextDue,total:last.total||0,deposited:0,status:"pending",isExisting:false}]);
+    if(last.dueDate){try{const d=parseLocalDate(last.dueDate);d.setMonth(d.getMonth()+1);nextDue=d.toISOString().split("T")[0];}catch(e){}}
+    setRows(rs=>[...rs,{id:null,dueDate:nextDue,deposited:0,status:"pending",isExisting:false}]);
   };
-
   const removeRow=(idx)=>setRows(rs=>rs.filter((_,i)=>i!==idx));
+
+  // Per-month portion of total
+  const portionPerMonth=rows.length>0?Math.round(fmtNum(totalAmount)/rows.length*100)/100:0;
+  const totalDeposited=rows.reduce((s,r)=>s+fmtNum(r.deposited),0);
+  const totalBalance=Math.max(0,fmtNum(totalAmount)-totalDeposited);
 
   const handleSave=()=>{
     if(!client.trim()) return;
     rows.forEach((row,i)=>{
       if(!row.dueDate) return;
       const nd=parseLocalDate(row.dueDate);
-      const rem=Math.max(0,fmtNum(row.total)-fmtNum(row.deposited));
+      const rowTotal=portionPerMonth;
+      const rem=Math.max(0,rowTotal-fmtNum(row.deposited));
       const entry={
         id:row.id||(Date.now().toString()+i),
         client,job,massSave,notes,
         dueDate:row.dueDate,
         billedDate:`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,"0")}-01`,
-        total:fmtNum(row.total),
+        total:rowTotal,
         deposited:fmtNum(row.deposited),
         remaining:rem,
         status:row.status,
@@ -579,14 +582,25 @@ function ModalReceivableV2({item,allItems,onSave,onSaveAll,onAdd,onClose,month,y
     onClose();
   };
 
-  return <div className="overlay" onClick={onClose}><div className="modal" style={{width:620,maxWidth:"98vw"}} onClick={e=>e.stopPropagation()}>
+  return <div className="overlay" onClick={onClose}><div className="modal" style={{width:600,maxWidth:"98vw"}} onClick={e=>e.stopPropagation()}>
     <div className="mtitle">{isEdit?"Edit Receivable":"New Receivable"}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
       {/* Client + Job */}
       <div className="g2">
         <div className="fg"><div className="fl">Client Name</div><input value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></div>
         <div className="fg"><div className="fl">Job / Invoice #</div><input value={job} onChange={e=>setJob(e.target.value)} placeholder="e.g. HVAC installation"/></div>
       </div>
+
+      {/* Total Amount */}
+      <div className="fg">
+        <div className="fl">Total Job Amount ($)</div>
+        <input type="number" value={totalAmount||""} onChange={e=>setTotalAmount(Number(e.target.value)||0)} placeholder="0.00" style={{fontFamily:"var(--mono)",fontSize:15,fontWeight:600}}/>
+        {rows.length>1&&totalAmount>0&&<div style={{fontSize:11,color:"var(--t2)",marginTop:4}}>
+          {rows.length} payments of {fmt(portionPerMonth)} each
+        </div>}
+      </div>
+
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <input type="checkbox" id="msv2" checked={massSave} onChange={e=>setMassSave(e.target.checked)} style={{width:"auto"}}/>
         <label htmlFor="msv2" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Mass Save</label>
@@ -596,19 +610,17 @@ function ModalReceivableV2({item,allItems,onSave,onSaveAll,onAdd,onClose,month,y
       <div>
         <div style={{fontSize:11,color:"var(--t2)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Payment Schedule</div>
         <div style={{background:"var(--bg2)",borderRadius:10,overflow:"hidden",border:"1px solid var(--bdr)"}}>
-          {/* Header */}
-          <div style={{display:"grid",gridTemplateColumns:"130px 1fr 1fr 100px 32px",gap:8,padding:"8px 12px",borderBottom:"1px solid var(--bdr)"}}>
-            {["Due Date","Amount ($)","Deposited ($)","Status",""].map((h,i)=><div key={i} style={{fontSize:10,color:"var(--t2)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>{h}</div>)}
+          <div style={{display:"grid",gridTemplateColumns:"140px 1fr 110px 28px",gap:8,padding:"8px 12px",borderBottom:"1px solid var(--bdr)"}}>
+            {["Due Date","Deposited ($)","Status",""].map((h,i)=><div key={i} style={{fontSize:10,color:"var(--t2)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>{h}</div>)}
           </div>
-          {/* Rows */}
           {rows.map((row,idx)=>{
-            const rem=Math.max(0,fmtNum(row.total)-fmtNum(row.deposited));
-            return <div key={idx} style={{display:"grid",gridTemplateColumns:"130px 1fr 1fr 100px 32px",gap:8,padding:"8px 12px",borderBottom:idx<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none",alignItems:"center"}}>
+            const rowTotal=portionPerMonth;
+            const rem=Math.max(0,rowTotal-fmtNum(row.deposited));
+            return <div key={idx} style={{display:"grid",gridTemplateColumns:"140px 1fr 110px 28px",gap:8,padding:"8px 12px",borderBottom:idx<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none",alignItems:"center"}}>
               <input type="date" value={row.dueDate} onChange={e=>updateRow(idx,"dueDate",e.target.value)} style={{fontSize:12,padding:"5px 8px"}}/>
-              <input type="number" value={row.total||""} onChange={e=>updateRow(idx,"total",e.target.value)} placeholder="0.00" style={{fontSize:12,padding:"5px 8px",fontFamily:"var(--mono)",textAlign:"right"}}/>
               <div style={{position:"relative"}}>
                 <input type="number" value={row.deposited||""} onChange={e=>updateRow(idx,"deposited",e.target.value)} placeholder="0.00" style={{fontSize:12,padding:"5px 8px",fontFamily:"var(--mono)",textAlign:"right",width:"100%"}}/>
-                {rem===0&&row.total>0&&<span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:10,color:"var(--g)"}}>✓</span>}
+                {rem===0&&rowTotal>0&&<span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:10,color:"var(--g)"}}>✓</span>}
               </div>
               <select value={row.status} onChange={e=>updateRow(idx,"status",e.target.value)} style={{fontSize:12,padding:"5px 8px"}}>
                 <option value="pending">Pending</option>
@@ -624,10 +636,10 @@ function ModalReceivableV2({item,allItems,onSave,onSaveAll,onAdd,onClose,month,y
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Optional notes..."/></div>
 
       {/* Summary */}
-      {rows.length>0&&<div style={{display:"flex",gap:16,background:"rgba(74,188,212,0.08)",border:"1px solid rgba(74,188,212,0.15)",borderRadius:8,padding:"10px 14px",fontSize:12}}>
-        <span style={{color:"var(--t2)"}}>Total: <span style={{color:"var(--t1)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(rows.reduce((s,r)=>s+fmtNum(r.total),0))}</span></span>
-        <span style={{color:"var(--t2)"}}>Received: <span style={{color:"var(--g)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(rows.reduce((s,r)=>s+fmtNum(r.deposited),0))}</span></span>
-        <span style={{color:"var(--t2)"}}>Balance: <span style={{color:"var(--re)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(rows.reduce((s,r)=>s+Math.max(0,fmtNum(r.total)-fmtNum(r.deposited)),0))}</span></span>
+      {totalAmount>0&&<div style={{display:"flex",gap:16,background:"rgba(74,188,212,0.08)",border:"1px solid rgba(74,188,212,0.15)",borderRadius:8,padding:"10px 14px",fontSize:12,flexWrap:"wrap"}}>
+        <span style={{color:"var(--t2)"}}>Total: <span style={{color:"var(--t1)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(totalAmount)}</span></span>
+        <span style={{color:"var(--t2)"}}>Received: <span style={{color:"var(--g)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(totalDeposited)}</span></span>
+        <span style={{color:"var(--t2)"}}>Balance: <span style={{color:totalBalance>0?"var(--re)":"var(--g)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(totalBalance)}</span></span>
       </div>}
     </div>
     <div className="mact">
@@ -636,263 +648,6 @@ function ModalReceivableV2({item,allItems,onSave,onSaveAll,onAdd,onClose,month,y
     </div>
   </div></div>;
 }
-
-
-function ModalContractor({onSave,onClose,month,year}) {
-  const [f,setF]=useState({name:"",job:"",amount:"",dueDate:"",notes:"",installments:1});
-  const s=(k,v)=>setF(p=>({...p,[k]:v}));
-  return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
-    <div className="mtitle">Subcontractor Payment</div>
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div className="fg"><div className="fl">Subcontractor Name</div><input value={f.name} onChange={e=>s("name",e.target.value)} placeholder="e.g. John Silva"/></div>
-      <div className="fg"><div className="fl">Job / Description</div><input value={f.job} onChange={e=>s("job",e.target.value)} placeholder="e.g. HVAC install - Boston"/></div>
-      <div className="g2">
-        <div className="fg"><div className="fl">Total Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",e.target.value)} placeholder="0.00"/></div>
-        <div className="fg"><div className="fl">Payment Date</div><input type="date" value={f.dueDate} onChange={e=>s("dueDate",e.target.value)}/></div>
-      </div>
-      <div className="fg">
-        <div className="fl">Split into how many months?</div>
-        <select value={f.installments} onChange={e=>s("installments",Number(e.target.value))}>
-          {[1,2,3,4,5,6].map(n=><option key={n} value={n}>{n===1?"Single payment":n+" monthly installments"}</option>)}
-        </select>
-      </div>
-      <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes} onChange={e=>s("notes",e.target.value)} placeholder="Optional notes..."/></div>
-    </div>
-    <div className="mact">
-      <button className="btn bgg" onClick={onClose}>Cancel</button>
-      <button className="btn bp" onClick={()=>{
-        if(!f.name||!f.amount) return;
-        const n=f.installments||1;const groupId=Date.now().toString();
-        for(let i=0;i<n;i++){
-          let m=month+i;let y=year;if(m>11){m=m-12;y+=1;}
-          const amt=Math.round(fmtNum(f.amount)/n*100)/100;
-          let dd=f.dueDate;
-          if(f.dueDate&&i>0){try{const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);dd=d.toISOString().split("T")[0];}catch(e){}}
-          onSave({...f,id:Date.now().toString()+i,groupId:n>1?groupId:null,installmentNum:n>1?i+1:null,totalInstallments:n>1?n:null,amount:amt,dueDate:dd,status:"pending",createdAt:new Date(y,m).toISOString()});
-        }
-        onClose();
-      }}>Save</button>
-    </div>
-  </div></div>;
-}
-
-function ModalPayable({onSave,onClose,month,year}) {
-  const [f,setF]=useState({description:"",vendor:"",amount:"",dueDate:"",category:"custos_fixos",notes:"",installments:1});
-  const s=(k,v)=>setF(p=>({...p,[k]:v}));
-  return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
-    <div className="mtitle">New Payable</div>
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div className="fg"><div className="fl">Description</div><input value={f.description} onChange={e=>s("description",e.target.value)} placeholder="e.g. Office Rent"/></div>
-      <div className="fg"><div className="fl">Vendor</div><input value={f.vendor} onChange={e=>s("vendor",e.target.value)} placeholder="e.g. WeWork"/></div>
-      <div className="g2">
-        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",e.target.value)} placeholder="0.00"/></div>
-        <div className="fg"><div className="fl">Due Date</div><input type="date" value={f.dueDate} onChange={e=>s("dueDate",e.target.value)}/></div>
-      </div>
-      <div className="fg"><div className="fl">Category</div>
-        <select value={f.category} onChange={e=>s("category",e.target.value)}>
-          {Object.entries(DRE_LABELS).filter(([k])=>!["receita_liquida","margem","lucro_op","lucro_ir","rev_operacional","rev_genn","impostos"].includes(k)).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-        </select>
-      </div>
-      <div className="fg">
-        <div className="fl">Repeat for how many months?</div>
-        <select value={f.installments} onChange={e=>s("installments",Number(e.target.value))}>
-          {[1,2,3,4,5,6,12].map(n=><option key={n} value={n}>{n===1?"This month only":n===12?"12 months (1 year)":n+" months"}</option>)}
-        </select>
-      </div>
-      <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes} onChange={e=>s("notes",e.target.value)} placeholder="Optional notes..."/></div>
-    </div>
-    <div className="mact">
-      <button className="btn bgg" onClick={onClose}>Cancel</button>
-      <button className="btn bp" onClick={()=>{
-        if(!f.description||!f.amount) return;
-        const n=f.installments||1;const groupId=Date.now().toString();
-        for(let i=0;i<n;i++){
-          let m=month+i;let y=year;if(m>11){m=m-12;y+=1;}
-          let dd=f.dueDate;
-          if(f.dueDate&&i>0){try{const d=parseLocalDate(f.dueDate);d.setMonth(d.getMonth()+i);dd=d.toISOString().split("T")[0];}catch(e){}}
-          onSave({...f,id:Date.now().toString()+i,groupId:n>1?groupId:null,installmentNum:n>1?i+1:null,totalInstallments:n>1?n:null,amount:fmtNum(f.amount),dueDate:dd,status:"pending",createdAt:new Date(y,m).toISOString()});
-        }
-        onClose();
-      }}>Save</button>
-    </div>
-  </div></div>;
-}
-
-
-// ─── MODAL EDIT RECEIVABLE ────────────────────────────────────────────────────
-// ─── RECURRENCE HELPER ───────────────────────────────────────────────────────
-const WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-function generateRecurDates(baseDate, type, count, weekday){
-  const dates=[];
-  if(!baseDate) return dates;
-  const d=parseLocalDate(baseDate);
-  for(let i=1;i<=count;i++){
-    const nd=new Date(d);
-    if(type==="monthly") nd.setMonth(nd.getMonth()+i);
-    else if(type==="weekly"){
-      // find next occurrence of weekday after current date + i*7 days
-      nd.setDate(nd.getDate()+i*7);
-      // adjust to target weekday
-      const diff=(weekday-nd.getDay()+7)%7;
-      nd.setDate(nd.getDate()+diff);
-    }
-    dates.push(nd.toISOString().split("T")[0]);
-  }
-  return dates;
-}
-
-// ─── RECURRENCE PANEL (shared UI) ────────────────────────────────────────────
-function RecurrencePanel({recur,setRecur}){
-  const {enabled,type,count,weekday}=recur;
-  return <div style={{background:"var(--bg2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 14px"}}>
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:enabled?12:0}}>
-      <input type="checkbox" id="recur-en" checked={enabled} onChange={e=>setRecur(r=>({...r,enabled:e.target.checked}))} style={{width:"auto"}}/>
-      <label htmlFor="recur-en" style={{fontSize:13,color:"var(--t1)",cursor:"pointer",fontWeight:500}}>Repeat this entry</label>
-    </div>
-    {enabled&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
-      <div className="g2">
-        <div className="fg"><div className="fl">Frequency</div>
-          <select value={type} onChange={e=>setRecur(r=>({...r,type:e.target.value}))}>
-            <option value="monthly">Monthly (same day)</option>
-            <option value="weekly">Weekly (choose day)</option>
-          </select>
-        </div>
-        <div className="fg"><div className="fl">{type==="monthly"?"Months":"Weeks"} to repeat</div>
-          <select value={count} onChange={e=>setRecur(r=>({...r,count:Number(e.target.value)}))}>
-            {Array.from({length:type==="monthly"?12:52},(_,i)=>i+1).map(n=><option key={n} value={n}>{n} {type==="monthly"?"month":"week"}{n>1?"s":""}</option>)}
-          </select>
-        </div>
-      </div>
-      {type==="weekly"&&<div className="fg"><div className="fl">Day of the week</div>
-        <select value={weekday} onChange={e=>setRecur(r=>({...r,weekday:Number(e.target.value)}))}>
-          {WEEKDAYS.map((d,i)=><option key={i} value={i}>{d}</option>)}
-        </select>
-      </div>}
-      <div className="info" style={{marginBottom:0}}>Will create {count} {type==="weekly"?"weekly":"monthly"} copies — each starting Pending with $0 deposited.</div>
-    </div>}
-  </div>;
-}
-
-// ─── MODAL EDIT RECEIVABLE ────────────────────────────────────────────────────
-
-// ─── RECEIVABLES TAB ──────────────────────────────────────────────────────────
-
-// ─── MOBILE CARD ROW (used for narrow screens) ────────────────────────────────
-function MobileItemCard({title,subtitle,tag,fields,statusLabel,statusClass,actions}) {
-  return <div className="mobile-item-card">
-    <div className="mic-head">
-      <div>
-        <div className="mic-title">{title}</div>
-        {subtitle&&<div className="mic-sub">{subtitle}</div>}
-        {tag}
-      </div>
-      <span className={`badge ${statusClass}`}>{statusLabel}</span>
-    </div>
-    <div className="mic-fields">
-      {fields.map((f,i)=><div key={i} className="mic-field"><span className="mic-flabel">{f.label}</span><span className={f.cls||""} style={f.style}>{f.value}</span></div>)}
-    </div>
-    <div className="mic-actions">{actions}</div>
-  </div>;
-}
-
-function ReceivablesTab({data,setData,month,year}) {
-  const [showModal,setShowModal]=useState(false);
-  const [editItem,setEditItem]=useState(null);
-  const [filter,setFilter]=useState("all");
-  const items=useMemo(()=>(data.receivables||[]).filter(r=>{
-    const d=parseLocalDate(r.createdAt||r.dueDate)||new Date();
-    if(d.getMonth()!==month||d.getFullYear()!==year) return false;
-    if(filter==="pending") return r.status!=="paid";
-    if(filter==="paid") return r.status==="paid";
-    if(filter==="masssave") return r.massSave;
-    return true;
-  }),[data.receivables,month,year,filter]);
-  const totalSold=items.reduce((s,r)=>s+fmtNum(r.total),0);
-  const totalDep=items.reduce((s,r)=>s+fmtNum(r.deposited),0);
-  const totalRem=items.reduce((s,r)=>s+fmtNum(r.remaining),0);
-  const overdue=items.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0).length;
-  const markPaid=id=>{
-    const rec=(data.receivables||[]).find(r=>r.id===id);
-    if(rec){const updated={...rec,status:"paid",deposited:rec.total,remaining:0};fbSet("receivables",id,updated);}
-    setData(d=>({...d,receivables:d.receivables.map(r=>r.id===id?{...r,status:"paid",deposited:r.total,remaining:0}:r)}));
-  };
-  const del=id=>{if(!window.confirm("Are you sure you want to delete this receivable? This cannot be undone.")) return;
-    // Mark as deleted in Firebase (works for both hist_ and user-created items)
-    fbSet("receivables",id,{id,_deleted:true});
-    setData(d=>({...d,receivables:d.receivables.filter(r=>r.id!==id)}));
-  };
-  const add=item=>setData(d=>({...d,receivables:[...(d.receivables||[]),item]}));
-  const update=item=>{fbSet("receivables",item.id,item);setData(d=>({...d,receivables:d.receivables.map(r=>r.id===item.id?{...r,...item}:r)}));};
-  return <div>
-    <div className="help-box">
-      <strong>📋 Receivables — How to use:</strong><br/>
-      Add a new entry for each job that was invoiced. Fill in the client name, job description, invoice date, due date, total amount, and how much has already been deposited. The balance is calculated automatically.<br/>
-      — When a client pays, click <strong>✓</strong> to mark it as paid — it will be removed from the Cash Flow projection.<br/>
-      — Use <strong>Mass Save</strong> for jobs that include a Mass Save incentive program.<br/>
-      — You can split a payment into multiple months using the installment option.
-    </div>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-      <div className="ptitle">Receivables</div>
-      <button className="btn bp" onClick={()=>{setEditItem(null);setShowModal(true);}}>+ New</button>
-    </div>
-    <div className="psub">{MONTHS_EN[month]} {year}</div>
-    <div className="g4">
-      <div className="stat"><div className="sl">Total Invoiced</div><div className="sv" style={{color:C.blue}}>{fmt(totalSold)}</div></div>
-      <div className="stat"><div className="sl">Received</div><div className="sv" style={{color:C.green}}>{fmt(totalDep)}</div></div>
-      <div className="stat"><div className="sl">Outstanding</div><div className="sv" style={{color:C.amber}}>{fmt(totalRem)}</div></div>
-      <div className="stat"><div className="sl">Overdue</div><div className="sv" style={{color:overdue>0?C.red:C.text2}}>{overdue}</div><div className="ss">clients</div></div>
-    </div>
-    <div style={{display:"flex",gap:8,marginBottom:16}}>
-      {["all","pending","paid","masssave"].map(f=><button key={f} className={`btn bsm ${filter===f?"bp":"bgg"}`} onClick={()=>setFilter(f)}>{f==="all"?"All":f==="pending"?"Pending":f==="paid"?"Paid":"Mass Save"}</button>)}
-    </div>
-    {items.length===0?<div className="card empty"><div className="ei">📋</div>No receivables this month</div>:(<>
-      <div className="card desktop-table" style={{padding:0,overflow:"hidden"}}>
-        <table>
-          <thead><tr><th>Client</th><th>Job / Invoice #</th><th>Invoice Date</th><th>Total</th><th>Deposited</th><th>Balance</th><th>Aging</th><th>Status</th><th></th></tr></thead>
-          <tbody>{items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <tr key={r.id}>
-            <td><div style={{fontWeight:500}}>{r.client}{r.totalInstallments>1&&<span className="installment-tag">{r.installmentNum}/{r.totalInstallments}</span>}</div>{r.massSave&&<span className="tag" style={{marginTop:2}}>Mass Save</span>}</td>
-            <td style={{color:C.text2,maxWidth:140}}>{r.job}</td>
-            <td style={{color:C.text2,fontSize:12,fontFamily:"var(--mono)"}}>{r.billedDate||"—"}</td>
-            <td><span className="am">{fmt(r.total)}</span></td>
-            <td><span className="ap">{fmt(r.deposited)}</span></td>
-            <td><span className={fmtNum(r.remaining)>0?"an":"ap"}>{fmt(r.remaining)}</span></td>
-            <td><span style={{fontSize:12,color:ag.color,fontFamily:"var(--mono)"}}>{r.status==="paid"?"—":r.dueDate?ag.label:"—"}</span></td>
-            <td><span className={`badge ${r.status==="paid"?"bg":"bam"}`}>{r.status==="paid"?"Paid":"Pending"}</span></td>
-            <td><div className="acts">{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓</button>}<button className="btn bsm bgg" onClick={()=>{setEditItem(r);setShowModal(true);}} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕</button></div></td>
-          </tr>;})}
-          </tbody>
-        </table>
-      </div>
-      <div className="mobile-cards">
-        {items.map(r=>{const ag=agingLabel(agingDays(r.dueDate));return <MobileItemCard key={r.id}
-          title={r.client}
-          tag={r.massSave&&<span className="tag" style={{marginTop:4}}>Mass Save</span>}
-          statusLabel={r.status==="paid"?"Paid":"Pending"}
-          statusClass={r.status==="paid"?"bg":"bam"}
-          fields={[
-            {label:"Job/Invoice",value:r.job||"—"},
-            {label:"Invoice Date",value:r.billedDate||"—"},
-            {label:"Total",value:fmt(r.total),cls:"am"},
-            {label:"Deposited",value:fmt(r.deposited),cls:"ap"},
-            {label:"Balance",value:fmt(r.remaining),cls:fmtNum(r.remaining)>0?"an":"ap"},
-            {label:"Aging",value:r.status==="paid"?"—":r.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
-          ]}
-          actions={<>{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>{setEditItem(r);setShowModal(true);}}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕ Delete</button></>}
-        />;})}
-      </div>
-    </>)}
-    {showModal&&<ModalReceivableV2
-      item={editItem}
-      allItems={data.receivables||[]}
-      onSave={item=>{update(item);}}
-      onAdd={add}
-      onClose={()=>{setShowModal(false);setEditItem(null);}}
-      month={month} year={year}
-    />}
-  </div>;
-}
-
-// ─── CONTRACTORS TAB ──────────────────────────────────────────────────────────
 
 // ─── MODAL EDIT CONTRACTOR ───────────────────────────────────────────────────
 function ModalEditContractor({item,onSave,onAdd,onClose}) {
