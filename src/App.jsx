@@ -533,11 +533,11 @@ function ModalReceivableV2({item,allItems,onSave,onAdd,onClose,month,year}) {
 
   const initRows=()=>{
     if(isEdit&&groupItems.length>0){
-      return groupItems.map(r=>({id:r.id,dueDate:r.dueDate||"",deposited:r.deposited||0,status:r.status||"pending",isExisting:true}));
+      return groupItems.map(r=>({id:r.id,dueDate:r.dueDate||"",amount:r.total||0,deposited:r.deposited||0,status:r.status||"pending",isExisting:true}));
     }
-    if(isEdit) return [{id:item.id,dueDate:item.dueDate||"",deposited:item.deposited||0,status:item.status||"pending",isExisting:true}];
+    if(isEdit) return [{id:item.id,dueDate:item.dueDate||"",amount:item.total||0,deposited:item.deposited||0,status:item.status||"pending",isExisting:true}];
     const defaultDue=`${year}-${String(month+1).padStart(2,"0")}-15`;
-    return [{id:null,dueDate:defaultDue,deposited:0,status:"pending",isExisting:false}];
+    return [{id:null,dueDate:defaultDue,amount:0,deposited:0,status:"pending",isExisting:false}];
   };
   const [rows,setRows]=useState(initRows);
 
@@ -546,29 +546,32 @@ function ModalReceivableV2({item,allItems,onSave,onAdd,onClose,month,year}) {
     const last=rows[rows.length-1];
     let nextDue="";
     if(last.dueDate){try{const d=parseLocalDate(last.dueDate);d.setMonth(d.getMonth()+1);nextDue=d.toISOString().split("T")[0];}catch(e){}}
-    setRows(rs=>[...rs,{id:null,dueDate:nextDue,deposited:0,status:"pending",isExisting:false}]);
+    setRows(rs=>[...rs,{id:null,dueDate:nextDue,amount:0,deposited:0,status:"pending",isExisting:false}]);
   };
   const removeRow=(idx)=>setRows(rs=>rs.filter((_,i)=>i!==idx));
 
-  // Per-month portion of total
-  const portionPerMonth=rows.length>0?Math.round(fmtNum(totalAmount)/rows.length*100)/100:0;
-  const totalDeposited=rows.reduce((s,r)=>s+fmtNum(r.deposited),0);
-  const totalBalance=Math.max(0,fmtNum(totalAmount)-totalDeposited);
+  const sumAmounts=rows.reduce((s,r)=>s+fmtNum(r.amount),0);
+  const sumDeposited=rows.reduce((s,r)=>s+fmtNum(r.deposited),0);
+  const totalBalance=Math.max(0,fmtNum(totalAmount)-sumDeposited);
+  const amountsExceedTotal=totalAmount>0&&sumAmounts>fmtNum(totalAmount)+0.01;
+  const amountsUnderTotal=totalAmount>0&&Math.abs(sumAmounts-fmtNum(totalAmount))>0.01;
 
   const handleSave=()=>{
     if(!client.trim()) return;
+    if(amountsExceedTotal) return;
     rows.forEach((row,i)=>{
       if(!row.dueDate) return;
       const nd=parseLocalDate(row.dueDate);
-      const rowTotal=portionPerMonth;
-      const rem=Math.max(0,rowTotal-fmtNum(row.deposited));
+      const rowAmt=fmtNum(row.amount);
+      const dep=fmtNum(row.deposited);
+      const rem=Math.max(0,rowAmt-dep);
       const entry={
         id:row.id||(Date.now().toString()+i),
         client,job,massSave,notes,
         dueDate:row.dueDate,
         billedDate:`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,"0")}-01`,
-        total:rowTotal,
-        deposited:fmtNum(row.deposited),
+        total:rowAmt,
+        deposited:dep,
         remaining:rem,
         status:row.status,
         groupId:rows.length>1?groupId:null,
@@ -582,45 +585,46 @@ function ModalReceivableV2({item,allItems,onSave,onAdd,onClose,month,year}) {
     onClose();
   };
 
-  return <div className="overlay" onClick={onClose}><div className="modal" style={{width:600,maxWidth:"98vw"}} onClick={e=>e.stopPropagation()}>
+  return <div className="overlay" onClick={onClose}><div className="modal" style={{width:640,maxWidth:"98vw"}} onClick={e=>e.stopPropagation()}>
     <div className="mtitle">{isEdit?"Edit Receivable":"New Receivable"}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-
-      {/* Client + Job */}
       <div className="g2">
         <div className="fg"><div className="fl">Client Name</div><input value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></div>
         <div className="fg"><div className="fl">Job / Invoice #</div><input value={job} onChange={e=>setJob(e.target.value)} placeholder="e.g. HVAC installation"/></div>
       </div>
 
-      {/* Total Amount */}
-      <div className="fg">
-        <div className="fl">Total Job Amount ($)</div>
-        <input type="number" value={totalAmount||""} onChange={e=>setTotalAmount(Number(e.target.value)||0)} placeholder="0.00" style={{fontFamily:"var(--mono)",fontSize:15,fontWeight:600}}/>
-        {rows.length>1&&totalAmount>0&&<div style={{fontSize:11,color:"var(--t2)",marginTop:4}}>
-          {rows.length} payments of {fmt(portionPerMonth)} each
-        </div>}
+      <div className="g2">
+        <div className="fg">
+          <div className="fl">Total Job Amount ($)</div>
+          <input type="number" value={totalAmount||""} onChange={e=>setTotalAmount(Number(e.target.value)||0)} placeholder="0.00" style={{fontFamily:"var(--mono)",fontSize:15,fontWeight:600}}/>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:20}}>
+          <input type="checkbox" id="msv2" checked={massSave} onChange={e=>setMassSave(e.target.checked)} style={{width:"auto"}}/>
+          <label htmlFor="msv2" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Mass Save</label>
+        </div>
       </div>
 
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <input type="checkbox" id="msv2" checked={massSave} onChange={e=>setMassSave(e.target.checked)} style={{width:"auto"}}/>
-        <label htmlFor="msv2" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Mass Save</label>
-      </div>
+      {amountsExceedTotal&&<div style={{background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"var(--re)"}}>
+        ⚠️ Monthly amounts ({fmt(sumAmounts)}) exceed the total ({fmt(totalAmount)}). Please adjust.
+      </div>}
+      {!amountsExceedTotal&&amountsUnderTotal&&totalAmount>0&&<div style={{background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"var(--am)"}}>
+        Monthly amounts sum to {fmt(sumAmounts)} — {fmt(fmtNum(totalAmount)-sumAmounts)} remaining to allocate.
+      </div>}
 
-      {/* Month rows */}
       <div>
         <div style={{fontSize:11,color:"var(--t2)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Payment Schedule</div>
         <div style={{background:"var(--bg2)",borderRadius:10,overflow:"hidden",border:"1px solid var(--bdr)"}}>
-          <div style={{display:"grid",gridTemplateColumns:"140px 1fr 110px 28px",gap:8,padding:"8px 12px",borderBottom:"1px solid var(--bdr)"}}>
-            {["Due Date","Deposited ($)","Status",""].map((h,i)=><div key={i} style={{fontSize:10,color:"var(--t2)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>{h}</div>)}
+          <div style={{display:"grid",gridTemplateColumns:"130px 1fr 1fr 100px 28px",gap:8,padding:"8px 12px",borderBottom:"1px solid var(--bdr)"}}>
+            {["Due Date","Monthly Amount ($)","Deposited ($)","Status",""].map((h,i)=><div key={i} style={{fontSize:10,color:"var(--t2)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>{h}</div>)}
           </div>
           {rows.map((row,idx)=>{
-            const rowTotal=portionPerMonth;
-            const rem=Math.max(0,rowTotal-fmtNum(row.deposited));
-            return <div key={idx} style={{display:"grid",gridTemplateColumns:"140px 1fr 110px 28px",gap:8,padding:"8px 12px",borderBottom:idx<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none",alignItems:"center"}}>
+            const rem=Math.max(0,fmtNum(row.amount)-fmtNum(row.deposited));
+            return <div key={idx} style={{display:"grid",gridTemplateColumns:"130px 1fr 1fr 100px 28px",gap:8,padding:"8px 12px",borderBottom:idx<rows.length-1?"1px solid rgba(255,255,255,0.04)":"none",alignItems:"center"}}>
               <input type="date" value={row.dueDate} onChange={e=>updateRow(idx,"dueDate",e.target.value)} style={{fontSize:12,padding:"5px 8px"}}/>
+              <input type="number" value={row.amount||""} onChange={e=>updateRow(idx,"amount",Number(e.target.value)||0)} placeholder="0.00" style={{fontSize:12,padding:"5px 8px",fontFamily:"var(--mono)",textAlign:"right"}}/>
               <div style={{position:"relative"}}>
-                <input type="number" value={row.deposited||""} onChange={e=>updateRow(idx,"deposited",e.target.value)} placeholder="0.00" style={{fontSize:12,padding:"5px 8px",fontFamily:"var(--mono)",textAlign:"right",width:"100%"}}/>
-                {rem===0&&rowTotal>0&&<span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:10,color:"var(--g)"}}>✓</span>}
+                <input type="number" value={row.deposited||""} onChange={e=>updateRow(idx,"deposited",Number(e.target.value)||0)} placeholder="0.00" style={{fontSize:12,padding:"5px 8px",fontFamily:"var(--mono)",textAlign:"right",width:"100%"}}/>
+                {rem===0&&fmtNum(row.amount)>0&&<span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:10,color:"var(--g)"}}>✓</span>}
               </div>
               <select value={row.status} onChange={e=>updateRow(idx,"status",e.target.value)} style={{fontSize:12,padding:"5px 8px"}}>
                 <option value="pending">Pending</option>
@@ -635,20 +639,18 @@ function ModalReceivableV2({item,allItems,onSave,onAdd,onClose,month,year}) {
 
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Optional notes..."/></div>
 
-      {/* Summary */}
       {totalAmount>0&&<div style={{display:"flex",gap:16,background:"rgba(74,188,212,0.08)",border:"1px solid rgba(74,188,212,0.15)",borderRadius:8,padding:"10px 14px",fontSize:12,flexWrap:"wrap"}}>
         <span style={{color:"var(--t2)"}}>Total: <span style={{color:"var(--t1)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(totalAmount)}</span></span>
-        <span style={{color:"var(--t2)"}}>Received: <span style={{color:"var(--g)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(totalDeposited)}</span></span>
+        <span style={{color:"var(--t2)"}}>Received: <span style={{color:"var(--g)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(sumDeposited)}</span></span>
         <span style={{color:"var(--t2)"}}>Balance: <span style={{color:totalBalance>0?"var(--re)":"var(--g)",fontFamily:"var(--mono)",fontWeight:600}}>{fmt(totalBalance)}</span></span>
       </div>}
     </div>
     <div className="mact">
       <button className="btn bgg" onClick={onClose}>Cancel</button>
-      <button className="btn bp" onClick={handleSave} disabled={!client.trim()}>Save</button>
+      <button className="btn bp" onClick={handleSave} disabled={!client.trim()||amountsExceedTotal}>Save</button>
     </div>
   </div></div>;
 }
-
 
 // ─── MOBILE CARD ROW (used for narrow screens) ────────────────────────────────
 function MobileItemCard({title,subtitle,tag,fields,statusLabel,statusClass,actions}) {
