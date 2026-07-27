@@ -1793,7 +1793,12 @@ export default function App() {
     setDataRaw(prev=>{
       const next=typeof u==="function"?u(prev):u;
       setSaving(true);
-      const saveArr=(col,items,prevItems)=>(items||[]).forEach(item=>{const pi=(prevItems||[]).find(p=>p.id===item.id);if(!pi||JSON.stringify(pi)!==JSON.stringify(item)) fbSet(col,item.id,item);});
+      // Only save items that are NEW or CHANGED — never re-save _deleted items
+      const saveArr=(col,items,prevItems)=>(items||[]).forEach(item=>{
+        if(item._deleted) return; // skip deleted items
+        const pi=(prevItems||[]).find(p=>p.id===item.id);
+        if(!pi||JSON.stringify(pi)!==JSON.stringify(item)) fbSet(col,item.id,item);
+      });
       if(JSON.stringify(next.receivables)!==JSON.stringify(prev.receivables)) saveArr("receivables",next.receivables,prev.receivables);
       if(JSON.stringify(next.contractors)!==JSON.stringify(prev.contractors)) saveArr("contractors",next.contractors,prev.contractors);
       if(JSON.stringify(next.payables)!==JSON.stringify(prev.payables)) saveArr("payables",next.payables,prev.payables);
