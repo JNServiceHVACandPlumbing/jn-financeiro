@@ -796,36 +796,77 @@ function ReceivablesTab({data,setData,month,year}) {
   </div>;
 }
 
+// ─── RECURRENCE (shared by Contractor/Payable edit modals) ────────────────────
+function fmtLocalDate(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function nextWeekday(date,weekday){const d=new Date(date);const diff=((weekday-d.getDay())+7)%7||7;d.setDate(d.getDate()+diff);return d;}
+function generateRecurDates(startDateStr,type,count,weekday){
+  const dates=[];
+  let cur=parseLocalDate(startDateStr);
+  for(let i=0;i<count;i++){
+    if(type==="weekly"){cur=nextWeekday(cur,weekday);}
+    else{const d=new Date(cur);d.setMonth(d.getMonth()+1);cur=d;}
+    dates.push(fmtLocalDate(cur));
+  }
+  return dates;
+}
+function RecurrencePanel({recur,setRecur}) {
+  const set=(k,v)=>setRecur(r=>({...r,[k]:v}));
+  return <div className="fg">
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <input type="checkbox" id="recurEnabled" checked={recur.enabled} onChange={e=>set("enabled",e.target.checked)} style={{width:"auto"}}/>
+      <label htmlFor="recurEnabled" style={{fontSize:13,color:"var(--t2)",cursor:"pointer"}}>Repeat this payment</label>
+    </div>
+    {recur.enabled&&<div className="g3" style={{marginTop:8}}>
+      <div className="fg"><div className="fl">Frequency</div>
+        <select value={recur.type} onChange={e=>set("type",e.target.value)}>
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </div>
+      <div className="fg"><div className="fl">Repeat for</div>
+        <input type="number" min="1" value={recur.count} onChange={e=>set("count",Math.max(1,Number(e.target.value)||1))} placeholder="e.g. 3"/>
+      </div>
+      {recur.type==="weekly"&&<div className="fg"><div className="fl">Weekday</div>
+        <select value={recur.weekday} onChange={e=>set("weekday",Number(e.target.value))}>
+          <option value={0}>Sunday</option><option value={1}>Monday</option><option value={2}>Tuesday</option><option value={3}>Wednesday</option><option value={4}>Thursday</option><option value={5}>Friday</option><option value={6}>Saturday</option>
+        </select>
+      </div>}
+    </div>}
+  </div>;
+}
+
 // ─── MODAL EDIT CONTRACTOR ───────────────────────────────────────────────────
-function ModalEditContractor({item,onSave,onAdd,onClose}) {
-  const [f,setF]=useState({...item});
+function ModalEditContractor({item,onSave,onAdd,onClose,month,year}) {
+  const isNew=!item;
+  const [f,setF]=useState(()=>isNew?{name:"",job:"",amount:0,dueDate:(month!=null&&year!=null)?`${year}-${String(month+1).padStart(2,"0")}-15`:"",status:"pending",notes:""}:{...item});
   const [recur,setRecur]=useState({enabled:false,type:"monthly",count:1,weekday:5});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
-    <div className="mtitle">Edit — {item.name}</div>
+    <div className="mtitle">{isNew?"New Subcontractor Payment":`Edit — ${item.name}`}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div className="fg"><div className="fl">Name</div><input value={f.name} onChange={e=>s("name",e.target.value)}/></div>
+      <div className="fg"><div className="fl">Name</div><input value={f.name||""} onChange={e=>s("name",e.target.value)} placeholder="Subcontractor name"/></div>
       <div className="fg"><div className="fl">Job / Invoice #</div><input value={f.job||""} onChange={e=>s("job",e.target.value)} placeholder="e.g. HVAC install or Invoice #1234"/></div>
       <div className="g2">
-        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",e.target.value)}/></div>
+        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount||""} onChange={e=>s("amount",Number(e.target.value)||0)} placeholder="0.00"/></div>
         <div className="fg"><div className="fl">Payment Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
       </div>
       <div className="fg"><div className="fl">Status</div>
-        <select value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
+        <select value={f.status||"pending"} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
       </div>
       <RecurrencePanel recur={recur} setRecur={setRecur}/>
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
     </div>
     <div className="mact">
       <button className="btn bgg" onClick={onClose}>Cancel</button>
-      <button className="btn bp" onClick={()=>{
-        onSave({...f});
+      <button className="btn bp" disabled={!f.name||!f.name.trim()} onClick={()=>{
+        const base=isNew?{...f,id:Date.now().toString(),createdAt:new Date().toISOString()}:{...f};
+        onSave(base);
         if(recur.enabled&&f.dueDate){
-          const groupId=f.groupId||Date.now().toString();
+          const groupId=base.groupId||Date.now().toString();
           const dates=generateRecurDates(f.dueDate,recur.type,recur.count,recur.weekday);
           dates.forEach((dd,i)=>{
             const nd=parseLocalDate(dd);
-            onAdd({...f,id:Date.now().toString()+"c"+(i+1),dueDate:dd,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString(),status:"pending",groupId,installmentNum:(f.installmentNum||1)+(i+1),totalInstallments:(f.totalInstallments||1)+recur.count});
+            onAdd({...base,id:Date.now().toString()+"c"+(i+1),dueDate:dd,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString(),status:"pending",groupId,installmentNum:(base.installmentNum||1)+(i+1),totalInstallments:(base.totalInstallments||1)+recur.count});
           });
         }
         onClose();
@@ -835,17 +876,18 @@ function ModalEditContractor({item,onSave,onAdd,onClose}) {
 }
 
 // ─── MODAL EDIT PAYABLE ───────────────────────────────────────────────────────
-function ModalEditPayable({item,onSave,onAdd,onClose}) {
-  const [f,setF]=useState({...item});
+function ModalEditPayable({item,onSave,onAdd,onClose,month,year}) {
+  const isNew=!item;
+  const [f,setF]=useState(()=>isNew?{description:"",vendor:"",amount:0,dueDate:(month!=null&&year!=null)?`${year}-${String(month+1).padStart(2,"0")}-15`:"",category:"custos_fixos",status:"pending",notes:""}:{...item});
   const [recur,setRecur]=useState({enabled:false,type:"monthly",count:1,weekday:5});
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
-    <div className="mtitle">Edit — {item.description}</div>
+    <div className="mtitle">{isNew?"New Payable":`Edit — ${item.description}`}</div>
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div className="fg"><div className="fl">Description</div><input value={f.description} onChange={e=>s("description",e.target.value)}/></div>
+      <div className="fg"><div className="fl">Description</div><input value={f.description||""} onChange={e=>s("description",e.target.value)} placeholder="e.g. Rent, Insurance"/></div>
       <div className="fg"><div className="fl">Vendor</div><input value={f.vendor||""} onChange={e=>s("vendor",e.target.value)}/></div>
       <div className="g2">
-        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount} onChange={e=>s("amount",Number(e.target.value))}/></div>
+        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount||""} onChange={e=>s("amount",Number(e.target.value)||0)} placeholder="0.00"/></div>
         <div className="fg"><div className="fl">Due Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
       </div>
       <div className="fg"><div className="fl">Category</div>
@@ -854,21 +896,22 @@ function ModalEditPayable({item,onSave,onAdd,onClose}) {
         </select>
       </div>
       <div className="fg"><div className="fl">Status</div>
-        <select value={f.status} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
+        <select value={f.status||"pending"} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
       </div>
       <RecurrencePanel recur={recur} setRecur={setRecur}/>
       <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
     </div>
     <div className="mact">
       <button className="btn bgg" onClick={onClose}>Cancel</button>
-      <button className="btn bp" onClick={()=>{
-        onSave({...f});
+      <button className="btn bp" disabled={!f.description||!f.description.trim()} onClick={()=>{
+        const base=isNew?{...f,id:Date.now().toString(),createdAt:new Date().toISOString()}:{...f};
+        onSave(base);
         if(recur.enabled&&f.dueDate){
-          const groupId=f.groupId||Date.now().toString();
+          const groupId=base.groupId||Date.now().toString();
           const dates=generateRecurDates(f.dueDate,recur.type,recur.count,recur.weekday);
           dates.forEach((dd,i)=>{
             const nd=parseLocalDate(dd);
-            onAdd({...f,id:Date.now().toString()+"p"+(i+1),dueDate:dd,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString(),status:"pending",groupId,installmentNum:(f.installmentNum||1)+(i+1),totalInstallments:(f.totalInstallments||1)+recur.count});
+            onAdd({...base,id:Date.now().toString()+"p"+(i+1),dueDate:dd,createdAt:new Date(nd.getFullYear(),nd.getMonth()).toISOString(),status:"pending",groupId,installmentNum:(base.installmentNum||1)+(i+1),totalInstallments:(base.totalInstallments||1)+recur.count});
           });
         }
         onClose();
@@ -900,7 +943,7 @@ function ContractorsTab({data,setData,month,year}) {
     </div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
       <div className="ptitle">Subcontractors</div>
-      <button className="btn bp" onClick={()=>{setEditItem(null);setShowModal(true);}}>+ New</button>
+      <button className="btn bp" onClick={()=>{setEditItem(null);setShowAdd(true);}}>+ New</button>
     </div>
     <div className="psub">{MONTHS_EN[month]} {year}</div>
     <div className="g4">
@@ -940,8 +983,8 @@ function ContractorsTab({data,setData,month,year}) {
         />;})}
       </div>
     </>)}
-    {showAdd&&<ModalContractor onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
-    {editItem&&<ModalEditContractor item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)}/>}
+    {showAdd&&<ModalEditContractor item={null} onSave={item=>{add(item);setShowAdd(false);}} onAdd={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
+    {editItem&&<ModalEditContractor item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)} month={month} year={year}/>}
   </div>;
 }
 
@@ -970,7 +1013,7 @@ function PayablesTab({data,setData,month,year}) {
     </div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
       <div className="ptitle">Payables</div>
-      <button className="btn bp" onClick={()=>{setEditItem(null);setShowModal(true);}}>+ New</button>
+      <button className="btn bp" onClick={()=>{setEditItem(null);setShowAdd(true);}}>+ New</button>
     </div>
     <div className="psub">{MONTHS_EN[month]} {year}</div>
     <div className="g4">
@@ -1012,8 +1055,8 @@ function PayablesTab({data,setData,month,year}) {
         />;})}
       </div>
     </>)}
-    {showAdd&&<ModalPayable onSave={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
-    {editItem&&<ModalEditPayable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)}/>}
+    {showAdd&&<ModalEditPayable item={null} onSave={item=>{add(item);setShowAdd(false);}} onAdd={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
+    {editItem&&<ModalEditPayable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)} month={month} year={year}/>}
   </div>;
 }
 
