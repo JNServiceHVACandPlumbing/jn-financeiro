@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, onSnapshot, collection } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, onSnapshot, collection } from "firebase/firestore";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine, Area, ComposedChart } from "recharts";
 
 // ─── FIREBASE ─────────────────────────────────────────────────────────────────
@@ -13,9 +13,39 @@ const firebaseConfig = {
   appId: "1:492476006410:web:cfb0793a6f959bda685ff3"
 };
 const fireApp = initializeApp(firebaseConfig);
-const db = getFirestore(fireApp);
-async function fbSet(col, id, data) { try { await setDoc(doc(db,col,id),data); } catch(e){console.error(e);} }
-async function fbSetDoc(docPath, data) { try { const parts=docPath.split("/"); await setDoc(doc(db,...parts),data); } catch(e){console.error(e);} }
+// Persistent local cache: pending writes queue in IndexedDB and survive a closed tab or a
+// dropped connection, flushing automatically once back online. Without this the write queue
+// only lived in memory, so closing the tab (or losing wifi) before a save reached the server
+// silently discarded it — no error, no trace.
+const db = initializeFirestore(fireApp, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
+
+// ─── SAVE STATUS (real, promise-driven — not a fixed timer) ───────────────────
+// The old code showed "Synced" 1.5s after any edit no matter what happened to the write.
+// This tracks actual pending/failed writes so the UI can tell the truth, and retries
+// failed writes (e.g. transient errors) instead of losing them after one console.error.
+const saveStatus = { pending: 0, failed: 0, listeners: new Set() };
+function notifySaveStatus() { saveStatus.listeners.forEach(fn => fn({ pending: saveStatus.pending, failed: saveStatus.failed })); }
+async function writeWithRetry(fn, maxRetries = 5) {
+  saveStatus.pending++; notifySaveStatus();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fn();
+      saveStatus.pending--; notifySaveStatus();
+      return true;
+    } catch (e) {
+      console.error(e);
+      if (attempt >= maxRetries) {
+        saveStatus.pending--; saveStatus.failed++; notifySaveStatus();
+        return false;
+      }
+      await new Promise(r => setTimeout(r, Math.min(1000 * (attempt + 1), 8000)));
+    }
+  }
+}
+async function fbSet(col, id, data) { return writeWithRetry(() => setDoc(doc(db, col, id), data)); }
+async function fbSetDoc(docPath, data) { return writeWithRetry(() => { const parts = docPath.split("/"); return setDoc(doc(db, ...parts), data); }); }
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const C = { red:"#E8392A",blue:"#4ABCD4",orange:"#E8622A",yellow:"#F5A623",teal:"#1B7A8A",green:"#34d399",amber:"#fbbf24",re:"#f87171",text1:"#f5f5f5",text2:"#999999" };
@@ -330,6 +360,7 @@ body{font-family:'DM Sans',sans-serif;background:#0b0b0d;color:#f5f5f5;min-heigh
 .sync{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:auto;font-weight:500;}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--g);box-shadow:0 0 6px rgba(52,211,153,0.6);}
 .sync-dot.saving{background:var(--am);animation:pulse 1s infinite;box-shadow:0 0 6px rgba(251,191,36,0.6);}
+.sync-dot.error{background:var(--re);animation:pulse 1s infinite;box-shadow:0 0 6px rgba(248,113,113,0.6);}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
 
 /* ── LAYOUT ───────────────────────────────────────────────── */
@@ -688,8 +719,6 @@ function ReceivablesTab({data,setData,month,year}) {
   const totalRem=items.reduce((s,r)=>s+fmtNum(r.remaining),0);
   const overdue=items.filter(r=>r.status!=="paid"&&agingDays(r.dueDate)>0).length;
   const markPaid=id=>{
-    const rec=(data.receivables||[]).find(r=>r.id===id);
-    if(rec){const updated={...rec,status:"paid",deposited:rec.total,remaining:0};fbSet("receivables",id,updated);}
     setData(d=>({...d,receivables:d.receivables.map(r=>r.id===id?{...r,status:"paid",deposited:r.total,remaining:0}:r)}));
   };
   const del=id=>{if(!window.confirm("Are you sure you want to delete this receivable? This cannot be undone.")) return;
@@ -697,7 +726,7 @@ function ReceivablesTab({data,setData,month,year}) {
     setData(d=>({...d,receivables:d.receivables.filter(r=>r.id!==id)}));
   };
   const add=item=>setData(d=>({...d,receivables:[...(d.receivables||[]),item]}));
-  const update=item=>{fbSet("receivables",item.id,item);setData(d=>({...d,receivables:d.receivables.map(r=>r.id===item.id?{...r,...item}:r)}));};
+  const update=item=>setData(d=>({...d,receivables:d.receivables.map(r=>r.id===item.id?{...r,...item}:r)}));
   return <div>
     <div className="help-box">
       <strong>📋 Receivables — How to use:</strong><br/>
@@ -856,13 +885,12 @@ function ContractorsTab({data,setData,month,year}) {
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
   const markPaid=id=>{
-    const con=(data.contractors||[]).find(c=>c.id===id);
-    if(con){const updated={...con,status:"paid",paidAt:new Date().toISOString()};fbSet("contractors",id,updated);}
-    setData(d=>({...d,contractors:d.contractors.map(c=>c.id===id?{...c,status:"paid",paidAt:new Date().toISOString()}:c)}));
+    const paidAt=new Date().toISOString();
+    setData(d=>({...d,contractors:d.contractors.map(c=>c.id===id?{...c,status:"paid",paidAt}:c)}));
   };
   const del=id=>{if(!window.confirm("Are you sure you want to delete this payment?")) return;fbSet("contractors",id,{id,_deleted:true});setData(d=>({...d,contractors:d.contractors.filter(c=>c.id!==id)}));};
   const add=item=>setData(d=>({...d,contractors:[...(d.contractors||[]),item]}));
-  const update=item=>{fbSet("contractors",item.id,item);setData(d=>({...d,contractors:d.contractors.map(c=>c.id===item.id?{...c,...item}:c)}));};
+  const update=item=>setData(d=>({...d,contractors:d.contractors.map(c=>c.id===item.id?{...c,...item}:c)}));
   return <div>
     <div className="help-box">
       <strong>🔧 Subcontractors — How to use:</strong><br/>
@@ -926,13 +954,12 @@ function PayablesTab({data,setData,month,year}) {
   const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
   const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
   const markPaid=id=>{
-    const pay=(data.payables||[]).find(p=>p.id===id);
-    if(pay){const updated={...pay,status:"paid",paidAt:new Date().toISOString()};fbSet("payables",id,updated);}
-    setData(d=>({...d,payables:d.payables.map(p=>p.id===id?{...p,status:"paid",paidAt:new Date().toISOString()}:p)}));
+    const paidAt=new Date().toISOString();
+    setData(d=>({...d,payables:d.payables.map(p=>p.id===id?{...p,status:"paid",paidAt}:p)}));
   };
   const del=id=>{if(!window.confirm("Are you sure you want to delete this payable?")) return;fbSet("payables",id,{id,_deleted:true});setData(d=>({...d,payables:d.payables.filter(p=>p.id!==id)}));};
   const add=item=>setData(d=>({...d,payables:[...(d.payables||[]),item]}));
-  const update=item=>{fbSet("payables",item.id,item);setData(d=>({...d,payables:d.payables.map(p=>p.id===item.id?{...p,...item}:p)}));};
+  const update=item=>setData(d=>({...d,payables:d.payables.map(p=>p.id===item.id?{...p,...item}:p)}));
   return <div>
     <div className="help-box">
       <strong>🧾 Payables — How to use:</strong><br/>
@@ -1647,14 +1674,22 @@ const EMPTY={receivables:[],contractors:[],payables:[],dreData:{},dreEcoExtra:{}
 export default function App() {
   const [data,setDataRaw]=useState(EMPTY);
   const [loading,setLoading]=useState(true);
-  const [saving,setSaving]=useState(false);
+  const [saveState,setSaveState]=useState({pending:0,failed:0});
+  const [loadError,setLoadError]=useState(null);
   const [section,setSection]=useState("operacional");
   const [tab,setTab]=useState("dashboard");
   const [month,setMonth]=useState(today.getMonth());
   const [year]=useState(today.getFullYear());
 
   useEffect(()=>{
+    const listener=s=>setSaveState(s);
+    saveStatus.listeners.add(listener);
+    return ()=>saveStatus.listeners.delete(listener);
+  },[]);
+
+  useEffect(()=>{
     let loaded=0;const check=()=>{loaded++;if(loaded>=4) setLoading(false);};
+    const onErr=(label)=>(e)=>{console.error(e);setLoadError(`${label}: ${e.message||e.code||e}`);check();};
     const unsubs=[];
     unsubs.push(onSnapshot(collection(db,"receivables"),snap=>{
       const fbRecs=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -1670,9 +1705,9 @@ export default function App() {
       const histItems=HIST_RECEIVABLES.filter(r=>!fbIds.has(r.id)&&!deletedHist.has(r.id));
       setDataRaw(p=>({...p,receivables:[...histItems,...fbRecs.filter(r=>!r._deleted)]}));
       check();
-    },(e)=>{console.error(e);check();}));
-    unsubs.push(onSnapshot(collection(db,"contractors"),snap=>{setDataRaw(p=>({...p,contractors:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},(e)=>{console.error(e);check();}));
-    unsubs.push(onSnapshot(collection(db,"payables"),snap=>{setDataRaw(p=>({...p,payables:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},(e)=>{console.error(e);check();}));
+    },onErr("Receivables")));
+    unsubs.push(onSnapshot(collection(db,"contractors"),snap=>{setDataRaw(p=>({...p,contractors:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},onErr("Subcontractors")));
+    unsubs.push(onSnapshot(collection(db,"payables"),snap=>{setDataRaw(p=>({...p,payables:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},onErr("Payables")));
     unsubs.push(onSnapshot(collection(db,"dre"),snap=>{
       const dreData={},dreEcoExtra={},dreAdj={},dreEstimate={},cashFlowDaily={},cashFlowSettings={};
       snap.docs.forEach(d=>{
@@ -1692,14 +1727,13 @@ export default function App() {
       });
       setDataRaw(p=>({...p,dreData,dreEcoExtra,dreAdj,dreEstimate,cashFlowDaily,cashFlowSettings,monthNotes,monthClose,monthStatus}));
       check();
-    },(e)=>{console.error(e);check();}));
+    },onErr("DRE")));
     return ()=>unsubs.forEach(u=>u());
   },[]);
 
   const setData=useCallback(u=>{
     setDataRaw(prev=>{
       const next=typeof u==="function"?u(prev):u;
-      setSaving(true);
       // Only save items that are NEW or CHANGED — never re-save _deleted items
       const saveArr=(col,items,prevItems)=>(items||[]).forEach(item=>{
         if(item._deleted) return; // skip deleted items
@@ -1719,7 +1753,6 @@ export default function App() {
       if(JSON.stringify(next.dreEstimate)!==JSON.stringify(prev.dreEstimate)) saveDRE("est",next.dreEstimate,prev.dreEstimate);
       if(JSON.stringify(next.cashFlowDaily)!==JSON.stringify(prev.cashFlowDaily)) saveDRE("cf_daily",next.cashFlowDaily,prev.cashFlowDaily);
       if(JSON.stringify(next.cashFlowSettings)!==JSON.stringify(prev.cashFlowSettings)) saveDRE("cf_settings",next.cashFlowSettings,prev.cashFlowSettings);
-      setTimeout(()=>setSaving(false),1500);
       return next;
     });
   },[]);
@@ -1742,11 +1775,16 @@ export default function App() {
         <select className="msel" value={month} onChange={e=>setMonth(Number(e.target.value))}>
           {MONTHS_EN.map((m,i)=><option key={i} value={i}>{m} {year}</option>)}
         </select>
-        <div className="sync"><div className={`sync-dot ${saving?"saving":""}`}/><span>{saving?"Saving...":"Synced"}</span></div>
+        <div className="sync">
+          <div className={`sync-dot ${saveState.failed>0?"error":saveState.pending>0?"saving":""}`}/>
+          <span>{saveState.failed>0?`Erro ao salvar (${saveState.failed})`:saveState.pending>0?"Saving...":"Synced"}</span>
+        </div>
       </div>
       <div className="subnav">
         {tabs.map(t=><button key={t.id} className={`nb ${tab===t.id?(section==="operacional"?"ac":"at"):""}`} onClick={()=>setTab(t.id)}>{t.label}</button>)}
       </div>
+      {saveState.failed>0&&<div className="warn" style={{margin:"12px 20px 0"}}>⚠️ {saveState.failed} alteração(ões) não foram salvas no servidor depois de várias tentativas. Verifique sua internet — <strong>não feche esta aba</strong> até o indicador voltar para "Synced", ou a alteração pode ser perdida.</div>}
+      {loadError&&<div className="warn" style={{margin:"12px 20px 0"}}>⚠️ Não foi possível carregar os dados atualizados do servidor ({loadError}). O que você está vendo pode estar desatualizado.</div>}
       <div className="content">
         {tab==="dashboard"&&<OperationalDashboard data={data} month={month} year={year}/>}
         {tab==="receivables"&&<ReceivablesTab data={data} setData={setData} month={month} year={year}/>}
