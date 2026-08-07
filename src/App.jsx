@@ -87,6 +87,11 @@ const DRE_LABELS = {
 
 const DRE_INPUT_KEYS = ["rev_operacional","rev_genn","impostos","cogs_materials","cogs_genn","cogs_subs","cogs_fuel","mkt","sal_ops","sal_ops_plumbing","comercial_ic","sal_adm","custos_fixos","estoque","softwares","contabilidade","desp_gerais","taxas_bank"];
 
+// Salary-type costs that are paid as they go and never get entered as payables. The Cash Flow
+// tab estimates these from history instead of reading them from Payables.
+const PAYROLL_KEYS = ["sal_adm","sal_ops","sal_ops_plumbing","comercial_ic"];
+const isInMonth = (d,month,year) => !!d && parseLocalDate(d).getMonth()===month && parseLocalDate(d).getFullYear()===year;
+
 const DRE_STRUCTURE = [
   {key:"rev_operacional",type:"input"},{key:"rev_genn",type:"input"},{key:"impostos",type:"input"},{key:"receita_liquida",type:"calc"},
   {key:"cogs_materials",type:"input"},{key:"cogs_genn",type:"input"},{key:"cogs_subs",type:"input"},{key:"cogs_fuel",type:"input"},{key:"margem",type:"calc"},
@@ -1246,9 +1251,9 @@ function CashFlowTab({data,setData,month,year}) {
   const dayKeys=Array.from({length:daysInMonth},(_,i)=>`${year}-${String(month+1).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`);
   const dailyCSV=(data.cashFlowDaily?.[mk])||[];
 
-  const pendingRec=(data.receivables||[]).filter(r=>r.status!=="paid"&&r.dueDate&&parseLocalDate(r.dueDate).getMonth()===month&&parseLocalDate(r.dueDate).getFullYear()===year);
-  const pendingPay=(data.payables||[]).filter(p=>p.status!=="paid"&&p.dueDate&&parseLocalDate(p.dueDate).getMonth()===month&&parseLocalDate(p.dueDate).getFullYear()===year);
-  const pendingCon=(data.contractors||[]).filter(c=>c.status!=="paid"&&c.dueDate&&parseLocalDate(c.dueDate).getMonth()===month&&parseLocalDate(c.dueDate).getFullYear()===year);
+  const pendingRec=useMemo(()=>(data.receivables||[]).filter(r=>r.status!=="paid"&&isInMonth(r.dueDate,month,year)),[data.receivables,month,year]);
+  const pendingPay=useMemo(()=>(data.payables||[]).filter(p=>p.status!=="paid"&&isInMonth(p.dueDate,month,year)),[data.payables,month,year]);
+  const pendingCon=useMemo(()=>(data.contractors||[]).filter(c=>c.status!=="paid"&&isInMonth(c.dueDate,month,year)),[data.contractors,month,year]);
 
   // Where "today" falls inside the month on screen: the day itself for the current month,
   // the 1st for a month that has not started, the last day for one already closed. This is
@@ -1256,34 +1261,34 @@ function CashFlowTab({data,setData,month,year}) {
   const anchorDay=todayStr<dayKeys[0]?dayKeys[0]:(todayStr>dayKeys[dayKeys.length-1]?dayKeys[dayKeys.length-1]:todayStr);
   const bankToday=fmtNum(bankInput)||fmtNum(cfSettings.currentBank)||0;
 
+  // Salaries, operational support and sales commissions never get entered as payables —
+  // they are just paid as they go — but they go out every month whether or not a job does.
+  // Anything filed under one of these categories is therefore dropped from Payables here:
+  // the estimate below covers that whole bucket, so counting both would charge it twice.
+  const pendingPayCash=useMemo(()=>pendingPay.filter(p=>!PAYROLL_KEYS.includes(p.category)),[pendingPay]);
+  const payrollInPayables=pendingPay.filter(p=>PAYROLL_KEYS.includes(p.category)).reduce((s,p)=>s+fmtNum(p.amount),0);
+
   // Past due and still pending is not history, it is late. That money is still in the
   // account and still has to move, so it is charged on the anchor day instead of vanishing.
-  const overdueOut=pendingPay.filter(p=>p.dueDate<anchorDay).reduce((s,p)=>s+fmtNum(p.amount),0)
+  const overdueOut=pendingPayCash.filter(p=>p.dueDate<anchorDay).reduce((s,p)=>s+fmtNum(p.amount),0)
                   +pendingCon.filter(c=>c.dueDate<anchorDay).reduce((s,c)=>s+fmtNum(c.amount),0);
 
-  const pendingOutMonth=pendingPay.reduce((s,p)=>s+fmtNum(p.amount),0)+pendingCon.reduce((s,c)=>s+fmtNum(c.amount),0);
-  const realizedOutMonth=dailyCSV.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
-
-  // Most of what this business spends is job driven — materials, subs, fuel — and none of it
-  // exists in the system until somebody enters it. Counting only registered items makes the
-  // forecast structurally optimistic, so the shortfall is estimated from what closed months
-  // actually cost per day.
-  const runRate=useMemo(()=>{
-    const costOf=d=>DRE_INPUT_KEYS.filter(k=>!["rev_operacional","rev_genn","impostos"].includes(k)).reduce((s,k)=>s+fmtNum(d[k]),0);
+  // Average of the last 3 closed months, charged only for the days still ahead. Job-driven
+  // costs (materials, subs, fuel) are left out on purpose: they arrive together with the
+  // revenue, and revenue is not estimated here either.
+  const payrollAvg=useMemo(()=>{
     const samples=[];
     for(let i=1;i<=3;i++){
       let m=month-i,y=year;
       while(m<0){m+=12;y--;}
       const d=getDREForMonth(data,y,m,"real");
-      if(d) samples.push(costOf(d)/new Date(y,m+1,0).getDate());
+      if(d) samples.push(PAYROLL_KEYS.reduce((s,k)=>s+fmtNum(d[k]),0));
     }
-    return {perDay:samples.length?samples.reduce((a,b)=>a+b,0)/samples.length:0,months:samples.length};
+    return {total:samples.length?samples.reduce((a,b)=>a+b,0)/samples.length:0,months:samples.length};
   },[data,month,year]);
 
-  // Only the gap: whatever history says the month costs, minus everything already realized
-  // or registered. As more gets entered the estimate shrinks on its own, never double counting.
-  const expectedMonthCost=runRate.perDay*daysInMonth;
-  const estimatedGap=Math.max(0,expectedMonthCost-realizedOutMonth-pendingOutMonth);
+  const daysLeft=dayKeys.filter(d=>d>anchorDay).length;
+  const estimatedGap=payrollAvg.total*(daysLeft/daysInMonth);
   const futureDays=dayKeys.filter(d=>d>anchorDay).length;
   const gapPerDay=futureDays>0?estimatedGap/futureDays:0;
   const gapOnAnchor=futureDays>0?0:estimatedGap;
@@ -1297,9 +1302,9 @@ function CashFlowTab({data,setData,month,year}) {
       // The anchor day absorbs everything already overdue; other days take only their own.
       const counts=d=>isAnchor?d<=anchorDay:d===dayKey;
       const projIn=isBefore?0:pendingRec.filter(r=>counts(r.dueDate)).reduce((s,r)=>s+fmtNum(r.remaining),0);
-      const projOut=isBefore?0:(pendingPay.filter(p=>counts(p.dueDate)).reduce((s,p)=>s+fmtNum(p.amount),0)+pendingCon.filter(c=>counts(c.dueDate)).reduce((s,c)=>s+fmtNum(c.amount),0));
+      const projOut=isBefore?0:(pendingPayCash.filter(p=>counts(p.dueDate)).reduce((s,p)=>s+fmtNum(p.amount),0)+pendingCon.filter(c=>counts(c.dueDate)).reduce((s,c)=>s+fmtNum(c.amount),0));
       const estOut=isBefore?0:(isAnchor?gapOnAnchor:gapPerDay);
-      return {day:String(parseInt(dayKey.split("-")[2])),dayKey,isPast:isBefore,isAnchor,realizedIn,realizedOut,projIn,projOut,estOut:Math.round(estOut)};
+      return {day:String(parseInt(dayKey.split("-")[2])),dayKey,isPast:isBefore,isAnchor,realizedIn,realizedOut,projIn,projOut,estOut};
     });
 
     const iA=days.findIndex(d=>d.isAnchor);
@@ -1316,7 +1321,7 @@ function CashFlowTab({data,setData,month,year}) {
     for(let i=iA+1;i<days.length;i++){ fwd=fwd+days[i].realizedIn-days[i].realizedOut+days[i].projIn-days[i].projOut-days[i].estOut; bal[i]=fwd; }
 
     return days.map((d,i)=>({...d,balance:Math.round(bal[i]),anchorBalance:Math.round(anchorBal)}));
-  },[dayKeys,dailyCSV,pendingRec,pendingPay,pendingCon,anchorDay,bankToday,gapPerDay,gapOnAnchor]);
+  },[dayKeys,dailyCSV,pendingRec,pendingPayCash,pendingCon,anchorDay,bankToday,gapPerDay,gapOnAnchor]);
 
   const totalIn=chartData.reduce((s,d)=>s+d.realizedIn,0);
   const totalOut=chartData.reduce((s,d)=>s+d.realizedOut,0);
@@ -1337,8 +1342,9 @@ function CashFlowTab({data,setData,month,year}) {
       1. <strong>Update the bank balance weekly.</strong> It is what anchors the projection — it already contains everything that has happened this month, whether or not the CSVs were imported.<br/>
       2. <strong>Mark items as paid the day they are paid.</strong> Anything still pending is treated as money that has not left yet, so unmarked bills inflate what you appear to owe.<br/>
       3. The projection is <strong>balance today − everything pending − estimated costs</strong>. Pending means status, not due date: an overdue unpaid bill still counts, because that money still has to move.<br/>
-      4. <strong>Estimated costs</strong> cover what history says you spend but nobody has entered yet — materials, subs, fuel. It is the gap between the average month and what is already registered, so it shrinks on its own as things get entered. Revenue is <strong>not</strong> estimated the same way: only receivables actually registered count. That is deliberate — costs are committed, income is not — but it means the projection is a worst case, not a forecast.<br/>
-      5. Importing the Jobber CSVs in the <strong>DRE tab</strong> is for closing the month (accrual). The cash flow does not depend on it.
+      4. <strong>Estimated payroll</strong> covers the salary-type costs that never get entered as payables — Admin Salaries, Operational Support (General and Plumbing) and Sales IC. It is the 3-month average, charged only for the days still left in the month. Any payable filed under one of those categories is left out of the count above, so nothing is charged twice.<br/>
+      5. Job-driven costs (materials, subs, fuel) are <strong>not</strong> estimated, and neither is revenue — they arrive together, so leaving both out keeps the projection balanced. Estimate the revenue side yourself.<br/>
+      6. Importing the Jobber CSVs in the <strong>DRE tab</strong> is for closing the month (accrual). The cash flow does not depend on it.
     </div>
 
     <BasisNotice type="cashflow"/>
@@ -1370,7 +1376,7 @@ function CashFlowTab({data,setData,month,year}) {
     <div className="g4" style={{marginBottom:16}}>
       <div className="stat"><div className="sl">Balance Today</div><div className="sv" style={{color:todayBal>=0?C.green:C.re}}>{fmt(todayBal)}</div><div className="ss">{bankToday>0?"from bank":"not filled in"}</div></div>
       <div className="stat"><div className="sl">Registered</div><div className="sv" style={{color:committed>=0?C.green:C.re}}>{fmt(committed)}</div><div className="ss">{fmt(projIn)} in · {fmt(projOut)} out{overdueOut>0?` · ${fmt(overdueOut)} overdue`:""}</div></div>
-      <div className="stat"><div className="sl">Estimated Costs</div><div className="sv" style={{color:C.amber}}>{fmt(-estimatedGap)}</div><div className="ss">{runRate.months>0?`not entered yet · ${runRate.months}-month average`:"no closed month to estimate from"}</div></div>
+      <div className="stat"><div className="sl">Estimated Payroll</div><div className="sv" style={{color:C.amber}}>{fmt(-estimatedGap)}</div><div className="ss">{payrollAvg.months>0?`${payrollAvg.months}-month avg · ${daysLeft}/${daysInMonth} days left${payrollInPayables>0?` · ${fmt(payrollInPayables)} excluded from payables`:""}`:"no closed month to estimate from"}</div></div>
       <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div><div className="ss">balance − registered − estimated</div></div>
     </div>
 
