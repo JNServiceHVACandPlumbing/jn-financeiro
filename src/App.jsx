@@ -66,6 +66,14 @@ const JOBBER_MAP = {
   "accounting, licenses & insurance":"contabilidade","professional fees & insurance":"contabilidade",
   "admin & general expenses":"desp_gerais","general & admin expenses":"desp_gerais",
   "financial expenses":"taxas_bank","bank charges":"taxas_bank","genn platform":"cogs_genn","genn platform cost":"cogs_genn",
+  // Categorias novas. Lookup normaliza para minúsculas com espaços simples, então cada nome
+  // entra com e sem o hífen. "Operacional" (grafia PT) também mapeia, para o caso de o Jobber
+  // estar cadastrado assim.
+  "operational support - general":"sal_ops","operational support general":"sal_ops",
+  "operacional support - general":"sal_ops","operacional support general":"sal_ops",
+  "operational support - plumbing":"sal_ops_plumbing","operational support plumbing":"sal_ops_plumbing",
+  "operacional support - plumbing":"sal_ops_plumbing","operacional support plumbing":"sal_ops_plumbing",
+  "sales division - ic":"comercial_ic","sales division ic":"comercial_ic",
 };
 
 const DRE_LABELS = {
