@@ -1256,26 +1256,51 @@ function CashFlowTab({data,setData,month,year}) {
   const pendingPay=(data.payables||[]).filter(p=>p.status!=="paid"&&p.dueDate&&parseLocalDate(p.dueDate).getMonth()===month&&parseLocalDate(p.dueDate).getFullYear()===year);
   const pendingCon=(data.contractors||[]).filter(c=>c.status!=="paid"&&c.dueDate&&parseLocalDate(c.dueDate).getMonth()===month&&parseLocalDate(c.dueDate).getFullYear()===year);
 
+  // Onde "hoje" cai dentro do mês exibido: o próprio dia, se for o mês corrente; o dia 1º
+  // se o mês ainda não começou; o último dia se o mês já fechou. É o ponto onde a curva
+  // deixa de ser realizada e passa a ser projeção.
+  const anchorDay=todayStr<dayKeys[0]?dayKeys[0]:(todayStr>dayKeys[dayKeys.length-1]?dayKeys[dayKeys.length-1]:todayStr);
+  const bankToday=fmtNum(cfSettings.currentBank);
+
+  // Vencidos e ainda pendentes: não são passado, são atraso. O dinheiro deles continua
+  // em caixa e ainda vai se mover, então entram na projeção no dia âncora.
+  const vencidoIn=pendingRec.filter(r=>r.dueDate<anchorDay).reduce((s,r)=>s+fmtNum(r.remaining),0);
+  const vencidoOut=pendingPay.filter(p=>p.dueDate<anchorDay).reduce((s,p)=>s+fmtNum(p.amount),0)
+                  +pendingCon.filter(c=>c.dueDate<anchorDay).reduce((s,c)=>s+fmtNum(c.amount),0);
+
   const chartData=useMemo(()=>{
-    let balance=opening;
+    let balance=opening;   // pode ser substituído pelo saldo real do banco no dia âncora
+    let computed=opening;  // sempre derivado do CSV, usado só para a conferência bancária
     return dayKeys.map(dayKey=>{
-      const isPast=dayKey<=todayStr;
+      const isBefore=dayKey<anchorDay;
+      const isAnchor=dayKey===anchorDay;
       const realized=dailyCSV.filter(t=>t.date===dayKey);
       const realizedIn=realized.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
       const realizedOut=realized.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
-      const projIn=isPast?0:pendingRec.filter(r=>r.dueDate===dayKey).reduce((s,r)=>s+fmtNum(r.remaining),0);
-      const projOut=isPast?0:(pendingPay.filter(p=>p.dueDate===dayKey).reduce((s,p)=>s+fmtNum(p.amount),0)+pendingCon.filter(c=>c.dueDate===dayKey).reduce((s,c)=>s+fmtNum(c.amount),0));
-      balance=balance+realizedIn-realizedOut+projIn-projOut;
-      return {day:String(parseInt(dayKey.split("-")[2])),dayKey,isPast,realizedIn,realizedOut,projIn,projOut,balance:Math.round(balance)};
+      balance=balance+realizedIn-realizedOut;
+      computed=computed+realizedIn-realizedOut;
+      // Saldo informado pelo banco vale mais que o acumulado do CSV: ele já contém tudo
+      // que aconteteu no mês, inclusive o que ainda não foi importado.
+      if(isAnchor&&bankToday>0) balance=bankToday;
+      const realizedBalance=balance;
+      // Um item pendente é dinheiro que ainda não se moveu, independente da data de
+      // vencimento. Os já vencidos são cobrados no dia âncora em vez de sumirem.
+      const conta=d=>isAnchor?d<=anchorDay:d===dayKey;
+      const projIn=isBefore?0:pendingRec.filter(r=>conta(r.dueDate)).reduce((s,r)=>s+fmtNum(r.remaining),0);
+      const projOut=isBefore?0:(pendingPay.filter(p=>conta(p.dueDate)).reduce((s,p)=>s+fmtNum(p.amount),0)+pendingCon.filter(c=>conta(c.dueDate)).reduce((s,c)=>s+fmtNum(c.amount),0));
+      balance=balance+projIn-projOut;
+      return {day:String(parseInt(dayKey.split("-")[2])),dayKey,isPast:isBefore,realizedIn,realizedOut,projIn,projOut,realizedBalance:Math.round(realizedBalance),computedBalance:Math.round(computed),balance:Math.round(balance)};
     });
-  },[dayKeys,dailyCSV,opening,pendingRec,pendingPay,pendingCon]);
+  },[dayKeys,dailyCSV,opening,pendingRec,pendingPay,pendingCon,anchorDay,bankToday]);
 
   const totalIn=chartData.reduce((s,d)=>s+d.realizedIn,0);
   const totalOut=chartData.reduce((s,d)=>s+d.realizedOut,0);
   const projIn=chartData.reduce((s,d)=>s+d.projIn,0);
   const projOut=chartData.reduce((s,d)=>s+d.projOut,0);
   const endBalance=chartData[chartData.length-1]?.balance||0;
-  const todayBal=chartData.find(d=>d.dayKey===todayStr)?.balance||opening;
+  const anchorPoint=chartData.find(d=>d.dayKey===anchorDay);
+  const todayBal=anchorPoint?.realizedBalance??opening;      // saldo em caixa, antes dos pendentes
+  const computedToday=anchorPoint?.computedBalance??opening; // só CSV, para a conferência
 
   // DRE Estimate computed
   const estimateComputed=computeDRE(dreEstimate,mk);
@@ -1312,7 +1337,7 @@ function CashFlowTab({data,setData,month,year}) {
           <div className="g2">
             <div>
               <div style={{fontSize:11,color:"var(--t2)",marginBottom:4}}>Current Bank Balance ($)</div>
-              <input type="number" value={cfSettings.currentBank||""} onChange={e=>setData(d=>({...d,cashFlowSettings:{...(d.cashFlowSettings||{}),[mk]:{...(d.cashFlowSettings?.[mk]||{}),[mk]:undefined,openingBalance:fmtNum(openingBalance),currentBank:Number(e.target.value)||0}}}))} placeholder="Enter current balance" style={{fontFamily:"var(--mono)"}}/>
+              <input type="number" value={cfSettings.currentBank||""} onChange={e=>setData(d=>({...d,cashFlowSettings:{...(d.cashFlowSettings||{}),[mk]:{...(d.cashFlowSettings?.[mk]||{}),openingBalance:fmtNum(openingBalance),currentBank:Number(e.target.value)||0}}}))} placeholder="Enter current balance" style={{fontFamily:"var(--mono)"}}/>
             </div>
             <div>
               <div style={{fontSize:11,color:"var(--t2)",marginBottom:4}}>Last Check Date</div>
@@ -1320,7 +1345,7 @@ function CashFlowTab({data,setData,month,year}) {
             </div>
           </div>
           {cfSettings.currentBank>0&&(()=>{
-            const diff=(cfSettings.currentBank||0)-todayBal;
+            const diff=(cfSettings.currentBank||0)-computedToday;
             return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:Math.abs(diff)<500?"rgba(52,211,153,0.1)":"rgba(248,113,113,0.1)",borderRadius:8,border:`1px solid ${Math.abs(diff)<500?"rgba(52,211,153,0.2)":"rgba(248,113,113,0.2)"}`}}>
               <span style={{fontSize:12,color:"var(--t2)"}}>Difference vs Projected</span>
               <span style={{fontSize:13,fontWeight:600,fontFamily:"var(--mono)",color:Math.abs(diff)<500?C.green:C.re}}>{diff>=0?"+":""}{fmt(diff)}</span>
@@ -1333,14 +1358,14 @@ function CashFlowTab({data,setData,month,year}) {
 
     <div className="g4" style={{marginBottom:16}}>
       <div className="stat"><div className="sl">Opening</div><div className="sv" style={{color:C.blue}}>{fmt(opening)}</div></div>
-      <div className="stat"><div className="sl">Balance Today</div><div className="sv" style={{color:todayBal>=0?C.green:C.re}}>{fmt(todayBal)}</div><div className="ss">realized</div></div>
-      <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div></div>
+      <div className="stat"><div className="sl">Balance Today</div><div className="sv" style={{color:todayBal>=0?C.green:C.re}}>{fmt(todayBal)}</div><div className="ss">{bankToday>0?"from bank":"realized"}</div></div>
+      <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div><div className="ss">{vencidoOut>0||vencidoIn>0?`inclui ${fmt(vencidoOut)} vencidos`:"todos os pendentes"}</div></div>
       <div className="stat"><div className="sl">Still to Receive</div><div className="sv" style={{color:C.amber}}>{fmt(projIn)}</div><div className="ss">pending receivables</div></div>
     </div>
 
     <div className="ccart">
       <div className="ctitle">Daily Balance Curve</div>
-      <div style={{fontSize:11,color:C.text2,marginBottom:12}}>Realized (from Jobber CSV) + Projected (from pending payables & receivables)</div>
+      <div style={{fontSize:11,color:C.text2,marginBottom:12}}>Realized (from Jobber CSV) + Projected (every pending payable & receivable, overdue ones charged today)</div>
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={chartData} margin={{top:5,right:20,bottom:5,left:0}}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/>
