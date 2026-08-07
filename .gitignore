@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Jobber report exports — contain real client names, postal codes, amounts and payment IDs.
+# This repository is public: never commit them.
+*.csv
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

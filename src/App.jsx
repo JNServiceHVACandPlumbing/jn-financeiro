@@ -206,17 +206,19 @@ function agingLabel(days){
   return {label:`${days}d overdue`,color:"#991b1b"};
 }
 
-// monthKey is optional "YYYY-M" string. From May 2026 (2026-4) onward, rev_genn is informational
-// only (already included in rev_operacional from the CSV) and must NOT be added to revenue.
-// Jan-Apr 2026 historical closed months keep the old formula (rev_genn was additive back then).
-function isGennInformationalOnly(monthKey){
+// monthKey is optional "YYYY-M" string. Months imported with GENN split out of rev_operacional
+// carry _gennSeparated, so rev_genn is real extra revenue and must be added. Legacy months
+// imported before that split (May 2026 onward) still have GENN inside rev_operacional, so adding
+// rev_genn there would double count. Jan-Apr 2026 historical months were always additive.
+function isGennInformationalOnly(monthKey,d){
+  if(d&&d._gennSeparated) return false; // GENN already removed from rev_operacional at import
   if(!monthKey) return false;
   const [y,m]=monthKey.split("-").map(Number);
   return y>2026 || (y===2026 && m>=4); // 2026-4 = May 2026 onward
 }
 function computeDRE(d,monthKey){
   const v=k=>fmtNum(d[k]);
-  const gennIsInfo=isGennInformationalOnly(monthKey);
+  const gennIsInfo=isGennInformationalOnly(monthKey,d);
   const receita_liquida=v("rev_operacional")+(gennIsInfo?0:v("rev_genn"))-v("impostos");
   const margem=receita_liquida-v("cogs_materials")-v("cogs_genn")-v("cogs_subs")-v("cogs_fuel");
   const lucro_op=margem-v("mkt")-v("sal_ops")-v("sal_adm")-v("custos_fixos")-v("estoque")-v("softwares")-v("contabilidade");
@@ -310,23 +312,45 @@ function parseExpenses(text){
   return {totals,daily};
 }
 
+// GENN PRO subscriptions are billed at 24.99 or 14.99 before tax. A payment counts as
+// recurring GENN revenue when the pre-tax amount is an EXACT multiple of one of those,
+// up to 12 (a year paid upfront). The multiple has to be exact: a loose "divides evenly"
+// test misclassified ordinary job payments — e.g. a $13,094.59 payment is 524 x 24.99.
+const GENN_PRICES=[24.99,14.99];
+function isGennPayment(preTaxAmount){
+  const v=Math.abs(preTaxAmount);
+  if(v<=0) return false;
+  for(const price of GENN_PRICES) for(let k=1;k<=12;k++) if(Math.abs(v-price*k)<=0.02) return true;
+  return false;
+}
+
 function parsePayments(text){
   const p=parseJobberCSV(text);if(!p) return {totals:{},daily:[]};
   const totals={};const daily=[];
-  const amtKey=p.headers.find(h=>h==="total $"||h.includes("total"));
+  const amtKey=p.headers.find(h=>h==="total $")||p.headers.find(h=>h.includes("total"));
   const typeKey=p.headers.find(h=>h==="type");
   const dateKey=p.headers.find(h=>h==="date");
   const clientKey=p.headers.find(h=>h==="client name");
+  const taxKey=p.headers.find(h=>h==="paid - tax $")||p.headers.find(h=>h.includes("paid - tax"));
+  const money=s=>parseFloat(String(s||"0").replace(/[$,]/g,""))||0;
   for(const row of p.rows){
-    const type=(row[typeKey]||"").toLowerCase();
-    if(type==="refund"||type==="credit") continue;
-    const amt=Math.abs(parseFloat((row[amtKey]||"0").replace(/[$,]/g,""))||0);
+    const type=(row[typeKey]||"").toLowerCase().trim();
+    // Only actual cash movements are revenue. The Transaction List mixes Invoice rows with
+    // Payment/Deposit rows — summing both counted every job twice (once billed, once paid).
+    const isCash=type==="payment"||type==="deposit";
+    const isRefund=type==="refund";
+    if(!isCash&&!isRefund) continue;
+    const gross=Math.abs(money(row[amtKey]));
+    if(gross===0) continue;
+    const signed=isRefund?-gross:gross; // a refund returns money to the client, so it reduces revenue
+    const bucket=isGennPayment(money(row[taxKey]))?"rev_genn":"rev_operacional";
+    totals[bucket]=(totals[bucket]||0)+signed;
     const rawDate=row[dateKey]||"";
-    if(amt>0){
-      totals["rev_operacional"]=(totals["rev_operacional"]||0)+amt;
-      if(rawDate){try{const d=new Date(rawDate);if(!isNaN(d.getTime())){const ds=d.toISOString().split("T")[0];daily.push({date:ds,amount:amt,type:"payment",description:row[clientKey]||"Payment",sourceType:"pay"});}}catch(e){}}
-    }
+    if(rawDate){try{const d=new Date(rawDate);if(!isNaN(d.getTime())){const ds=d.toISOString().split("T")[0];daily.push({date:ds,amount:signed,type:isRefund?"refund":"payment",description:row[clientKey]||"Payment",sourceType:"pay"});}}catch(e){}}
   }
+  // Flags this month as imported with GENN split out of rev_operacional, so computeDRE adds
+  // rev_genn to the total instead of assuming it is already inside rev_operacional.
+  totals._gennSeparated=true;
   return {totals,daily};
 }
 
