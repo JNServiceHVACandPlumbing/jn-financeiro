@@ -1233,21 +1233,15 @@ function DRETab({data,setData,month,year}) {
 function CashFlowTab({data,setData,month,year}) {
   const mk=`${year}-${month}`;
   const cfSettings=data.cashFlowSettings?.[mk]||{};
-  const [openingBalance,setOpeningBalance]=useState(cfSettings.openingBalance||"");
   const dreEstimate=data.dreEstimate?.[mk]||{};
   const [showEstimate,setShowEstimate]=useState(false);
+  const [bankInput,setBankInput]=useState(cfSettings.currentBank||"");
 
-  const saveOpening=v=>{
-    setOpeningBalance(v);
-    setData(d=>({...d,cashFlowSettings:{...(d.cashFlowSettings||{}),[mk]:{...(d.cashFlowSettings?.[mk]||{}),[k]:v,openingBalance:Number(v)||0}}}));
-  };
-  // fix: use correct key
-  const saveOpeningFixed=v=>{
-    setOpeningBalance(v);
-    setData(d=>({...d,cashFlowSettings:{...(d.cashFlowSettings||{}),[mk]:{...(d.cashFlowSettings?.[mk]||{}),openingBalance:Number(v)||0}}}));
+  const saveBank=v=>{
+    setBankInput(v);
+    setData(d=>({...d,cashFlowSettings:{...(d.cashFlowSettings||{}),[mk]:{...(d.cashFlowSettings?.[mk]||{}),currentBank:Number(v)||0}}}));
   };
 
-  const opening=fmtNum(openingBalance)||fmtNum(cfSettings.openingBalance)||0;
   const daysInMonth=new Date(year,month+1,0).getDate();
   const dayKeys=Array.from({length:daysInMonth},(_,i)=>`${year}-${String(month+1).padStart(2,"0")}-${String(i+1).padStart(2,"0")}`);
   const dailyCSV=(data.cashFlowDaily?.[mk])||[];
@@ -1256,51 +1250,81 @@ function CashFlowTab({data,setData,month,year}) {
   const pendingPay=(data.payables||[]).filter(p=>p.status!=="paid"&&p.dueDate&&parseLocalDate(p.dueDate).getMonth()===month&&parseLocalDate(p.dueDate).getFullYear()===year);
   const pendingCon=(data.contractors||[]).filter(c=>c.status!=="paid"&&c.dueDate&&parseLocalDate(c.dueDate).getMonth()===month&&parseLocalDate(c.dueDate).getFullYear()===year);
 
-  // Onde "hoje" cai dentro do mês exibido: o próprio dia, se for o mês corrente; o dia 1º
-  // se o mês ainda não começou; o último dia se o mês já fechou. É o ponto onde a curva
-  // deixa de ser realizada e passa a ser projeção.
+  // Where "today" falls inside the month on screen: the day itself for the current month,
+  // the 1st for a month that has not started, the last day for one already closed. This is
+  // the point where the curve stops being history and becomes a forecast.
   const anchorDay=todayStr<dayKeys[0]?dayKeys[0]:(todayStr>dayKeys[dayKeys.length-1]?dayKeys[dayKeys.length-1]:todayStr);
-  const bankToday=fmtNum(cfSettings.currentBank);
+  const bankToday=fmtNum(bankInput)||fmtNum(cfSettings.currentBank)||0;
 
-  // Vencidos e ainda pendentes: não são passado, são atraso. O dinheiro deles continua
-  // em caixa e ainda vai se mover, então entram na projeção no dia âncora.
-  const vencidoIn=pendingRec.filter(r=>r.dueDate<anchorDay).reduce((s,r)=>s+fmtNum(r.remaining),0);
-  const vencidoOut=pendingPay.filter(p=>p.dueDate<anchorDay).reduce((s,p)=>s+fmtNum(p.amount),0)
+  // Past due and still pending is not history, it is late. That money is still in the
+  // account and still has to move, so it is charged on the anchor day instead of vanishing.
+  const overdueOut=pendingPay.filter(p=>p.dueDate<anchorDay).reduce((s,p)=>s+fmtNum(p.amount),0)
                   +pendingCon.filter(c=>c.dueDate<anchorDay).reduce((s,c)=>s+fmtNum(c.amount),0);
 
+  const pendingOutMonth=pendingPay.reduce((s,p)=>s+fmtNum(p.amount),0)+pendingCon.reduce((s,c)=>s+fmtNum(c.amount),0);
+  const realizedOutMonth=dailyCSV.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
+
+  // Most of what this business spends is job driven — materials, subs, fuel — and none of it
+  // exists in the system until somebody enters it. Counting only registered items makes the
+  // forecast structurally optimistic, so the shortfall is estimated from what closed months
+  // actually cost per day.
+  const runRate=useMemo(()=>{
+    const costOf=d=>DRE_INPUT_KEYS.filter(k=>!["rev_operacional","rev_genn","impostos"].includes(k)).reduce((s,k)=>s+fmtNum(d[k]),0);
+    const samples=[];
+    for(let i=1;i<=3;i++){
+      let m=month-i,y=year;
+      while(m<0){m+=12;y--;}
+      const d=getDREForMonth(data,y,m,"real");
+      if(d) samples.push(costOf(d)/new Date(y,m+1,0).getDate());
+    }
+    return {perDay:samples.length?samples.reduce((a,b)=>a+b,0)/samples.length:0,months:samples.length};
+  },[data,month,year]);
+
+  // Only the gap: whatever history says the month costs, minus everything already realized
+  // or registered. As more gets entered the estimate shrinks on its own, never double counting.
+  const expectedMonthCost=runRate.perDay*daysInMonth;
+  const estimatedGap=Math.max(0,expectedMonthCost-realizedOutMonth-pendingOutMonth);
+  const futureDays=dayKeys.filter(d=>d>anchorDay).length;
+  const gapPerDay=futureDays>0?estimatedGap/futureDays:0;
+  const gapOnAnchor=futureDays>0?0:estimatedGap;
+
   const chartData=useMemo(()=>{
-    let balance=opening;   // pode ser substituído pelo saldo real do banco no dia âncora
-    let computed=opening;  // sempre derivado do CSV, usado só para a conferência bancária
-    return dayKeys.map(dayKey=>{
-      const isBefore=dayKey<anchorDay;
-      const isAnchor=dayKey===anchorDay;
+    const days=dayKeys.map(dayKey=>{
+      const isBefore=dayKey<anchorDay,isAnchor=dayKey===anchorDay;
       const realized=dailyCSV.filter(t=>t.date===dayKey);
       const realizedIn=realized.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
       const realizedOut=realized.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
-      balance=balance+realizedIn-realizedOut;
-      computed=computed+realizedIn-realizedOut;
-      // Saldo informado pelo banco vale mais que o acumulado do CSV: ele já contém tudo
-      // que aconteteu no mês, inclusive o que ainda não foi importado.
-      if(isAnchor&&bankToday>0) balance=bankToday;
-      const realizedBalance=balance;
-      // Um item pendente é dinheiro que ainda não se moveu, independente da data de
-      // vencimento. Os já vencidos são cobrados no dia âncora em vez de sumirem.
-      const conta=d=>isAnchor?d<=anchorDay:d===dayKey;
-      const projIn=isBefore?0:pendingRec.filter(r=>conta(r.dueDate)).reduce((s,r)=>s+fmtNum(r.remaining),0);
-      const projOut=isBefore?0:(pendingPay.filter(p=>conta(p.dueDate)).reduce((s,p)=>s+fmtNum(p.amount),0)+pendingCon.filter(c=>conta(c.dueDate)).reduce((s,c)=>s+fmtNum(c.amount),0));
-      balance=balance+projIn-projOut;
-      return {day:String(parseInt(dayKey.split("-")[2])),dayKey,isPast:isBefore,realizedIn,realizedOut,projIn,projOut,realizedBalance:Math.round(realizedBalance),computedBalance:Math.round(computed),balance:Math.round(balance)};
+      // The anchor day absorbs everything already overdue; other days take only their own.
+      const counts=d=>isAnchor?d<=anchorDay:d===dayKey;
+      const projIn=isBefore?0:pendingRec.filter(r=>counts(r.dueDate)).reduce((s,r)=>s+fmtNum(r.remaining),0);
+      const projOut=isBefore?0:(pendingPay.filter(p=>counts(p.dueDate)).reduce((s,p)=>s+fmtNum(p.amount),0)+pendingCon.filter(c=>counts(c.dueDate)).reduce((s,c)=>s+fmtNum(c.amount),0));
+      const estOut=isBefore?0:(isAnchor?gapOnAnchor:gapPerDay);
+      return {day:String(parseInt(dayKey.split("-")[2])),dayKey,isPast:isBefore,isAnchor,realizedIn,realizedOut,projIn,projOut,estOut:Math.round(estOut)};
     });
-  },[dayKeys,dailyCSV,opening,pendingRec,pendingPay,pendingCon,anchorDay,bankToday]);
+
+    const iA=days.findIndex(d=>d.isAnchor);
+    // The bank balance already contains everything that happened before it, imported or not,
+    // so the past is rebuilt by walking backwards out of it — no opening balance required.
+    // With no balance filled in, the curve still shows the month's shape, just not its level.
+    const anchorBal=bankToday>0?bankToday:days.slice(0,iA+1).reduce((s,d)=>s+d.realizedIn-d.realizedOut,0);
+
+    const bal=new Array(days.length).fill(0);
+    bal[iA]=anchorBal+days[iA].projIn-days[iA].projOut-days[iA].estOut;
+    let back=anchorBal;
+    for(let i=iA-1;i>=0;i--){ back=back-days[i+1].realizedIn+days[i+1].realizedOut; bal[i]=back; }
+    let fwd=bal[iA];
+    for(let i=iA+1;i<days.length;i++){ fwd=fwd+days[i].realizedIn-days[i].realizedOut+days[i].projIn-days[i].projOut-days[i].estOut; bal[i]=fwd; }
+
+    return days.map((d,i)=>({...d,balance:Math.round(bal[i]),anchorBalance:Math.round(anchorBal)}));
+  },[dayKeys,dailyCSV,pendingRec,pendingPay,pendingCon,anchorDay,bankToday,gapPerDay,gapOnAnchor]);
 
   const totalIn=chartData.reduce((s,d)=>s+d.realizedIn,0);
   const totalOut=chartData.reduce((s,d)=>s+d.realizedOut,0);
   const projIn=chartData.reduce((s,d)=>s+d.projIn,0);
   const projOut=chartData.reduce((s,d)=>s+d.projOut,0);
   const endBalance=chartData[chartData.length-1]?.balance||0;
-  const anchorPoint=chartData.find(d=>d.dayKey===anchorDay);
-  const todayBal=anchorPoint?.realizedBalance??opening;      // saldo em caixa, antes dos pendentes
-  const computedToday=anchorPoint?.computedBalance??opening; // só CSV, para a conferência
+  const todayBal=chartData.find(d=>d.isAnchor)?.anchorBalance??0;
+  const committed=projIn-projOut;
 
   // DRE Estimate computed
   const estimateComputed=computeDRE(dreEstimate,mk);
@@ -1310,10 +1334,11 @@ function CashFlowTab({data,setData,month,year}) {
   return <div>
     <div className="help-box">
       <strong>💰 Cash Flow Projection — How to use:</strong><br/>
-      1. Enter the <strong>opening balance</strong> (your bank balance on the 1st of the month).<br/>
-      2. Upload the Jobber CSVs in the <strong>DRE tab</strong> — this tab updates automatically with daily transactions.<br/>
-      3. The chart shows <strong>realized</strong> (from CSV) + <strong>projected</strong> (from pending receivables and payables).<br/>
-      4. Use <strong>DRE Estimate</strong> to forecast how the month will close — fill in expected revenue and costs. Saved automatically, clear anytime.
+      1. <strong>Update the bank balance weekly.</strong> It is what anchors the projection — it already contains everything that has happened this month, whether or not the CSVs were imported.<br/>
+      2. <strong>Mark items as paid the day they are paid.</strong> Anything still pending is treated as money that has not left yet, so unmarked bills inflate what you appear to owe.<br/>
+      3. The projection is <strong>balance today − everything pending − estimated costs</strong>. Pending means status, not due date: an overdue unpaid bill still counts, because that money still has to move.<br/>
+      4. <strong>Estimated costs</strong> cover what history says you spend but nobody has entered yet — materials, subs, fuel. It is the gap between the average month and what is already registered, so it shrinks on its own as things get entered. Revenue is <strong>not</strong> estimated the same way: only receivables actually registered count. That is deliberate — costs are committed, income is not — but it means the projection is a worst case, not a forecast.<br/>
+      5. Importing the Jobber CSVs in the <strong>DRE tab</strong> is for closing the month (accrual). The cash flow does not depend on it.
     </div>
 
     <BasisNotice type="cashflow"/>
@@ -1323,49 +1348,35 @@ function CashFlowTab({data,setData,month,year}) {
     <div className="ptitle" style={{marginBottom:4}}>Cash Flow Projection</div>
     <div className="psub">{MONTHS_EN[month]} {year}</div>
 
-    <div className="g2" style={{marginBottom:16}}>
-      <div className="card">
-        <div className="ctitle">Opening Balance</div>
-        <div className="fg">
-          <input type="number" value={openingBalance} onChange={e=>saveOpeningFixed(e.target.value)} placeholder="e.g. 50000" style={{fontFamily:"var(--mono)"}}/>
-          <div style={{fontSize:11,color:"var(--t2)"}}>Bank balance on {MONTHS_EN[month]} 1st</div>
+    <div className="card" style={{marginBottom:16}}>
+      <div className="ctitle">🏦 Bank Balance Today</div>
+      <div className="g2">
+        <div>
+          <div style={{fontSize:11,color:"var(--t2)",marginBottom:4}}>Balance in the account right now ($)</div>
+          <input type="number" value={bankInput} onChange={e=>saveBank(e.target.value)} placeholder="e.g. 50000" style={{fontFamily:"var(--mono)"}}/>
+        </div>
+        <div>
+          <div style={{fontSize:11,color:"var(--t2)",marginBottom:4}}>Last Check Date</div>
+          <input type="date" value={cfSettings.lastBankCheck||""} onChange={e=>setData(d=>({...d,cashFlowSettings:{...(d.cashFlowSettings||{}),[mk]:{...(d.cashFlowSettings?.[mk]||{}),lastBankCheck:e.target.value}}}))}/>
         </div>
       </div>
-      <div className="card">
-        <div className="ctitle">🏦 Bank Reconciliation</div>
-        <div className="fg" style={{gap:10}}>
-          <div className="g2">
-            <div>
-              <div style={{fontSize:11,color:"var(--t2)",marginBottom:4}}>Current Bank Balance ($)</div>
-              <input type="number" value={cfSettings.currentBank||""} onChange={e=>setData(d=>({...d,cashFlowSettings:{...(d.cashFlowSettings||{}),[mk]:{...(d.cashFlowSettings?.[mk]||{}),openingBalance:fmtNum(openingBalance),currentBank:Number(e.target.value)||0}}}))} placeholder="Enter current balance" style={{fontFamily:"var(--mono)"}}/>
-            </div>
-            <div>
-              <div style={{fontSize:11,color:"var(--t2)",marginBottom:4}}>Last Check Date</div>
-              <input type="date" value={cfSettings.lastBankCheck||""} onChange={e=>setData(d=>({...d,cashFlowSettings:{...(d.cashFlowSettings||{}),[mk]:{...(d.cashFlowSettings?.[mk]||{}),lastBankCheck:e.target.value}}}))}/>
-            </div>
-          </div>
-          {cfSettings.currentBank>0&&(()=>{
-            const diff=(cfSettings.currentBank||0)-computedToday;
-            return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:Math.abs(diff)<500?"rgba(52,211,153,0.1)":"rgba(248,113,113,0.1)",borderRadius:8,border:`1px solid ${Math.abs(diff)<500?"rgba(52,211,153,0.2)":"rgba(248,113,113,0.2)"}`}}>
-              <span style={{fontSize:12,color:"var(--t2)"}}>Difference vs Projected</span>
-              <span style={{fontSize:13,fontWeight:600,fontFamily:"var(--mono)",color:Math.abs(diff)<500?C.green:C.re}}>{diff>=0?"+":""}{fmt(diff)}</span>
-            </div>;
-          })()}
-          {cfSettings.lastBankCheck&&<div style={{fontSize:11,color:"var(--t2)"}}>Last checked: {cfSettings.lastBankCheck}</div>}
-        </div>
+      <div style={{fontSize:11,color:"var(--t2)",marginTop:8}}>
+        {bankToday>0
+          ?<>This anchors the whole projection — it already includes everything that happened this month, imported or not. Update it weekly.</>
+          :<>⚠️ Fill this in to get a real projection. Without it the curve only shows the month's shape, not its actual level.</>}
       </div>
     </div>
 
     <div className="g4" style={{marginBottom:16}}>
-      <div className="stat"><div className="sl">Opening</div><div className="sv" style={{color:C.blue}}>{fmt(opening)}</div></div>
-      <div className="stat"><div className="sl">Balance Today</div><div className="sv" style={{color:todayBal>=0?C.green:C.re}}>{fmt(todayBal)}</div><div className="ss">{bankToday>0?"from bank":"realized"}</div></div>
-      <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div><div className="ss">{vencidoOut>0||vencidoIn>0?`inclui ${fmt(vencidoOut)} vencidos`:"todos os pendentes"}</div></div>
-      <div className="stat"><div className="sl">Still to Receive</div><div className="sv" style={{color:C.amber}}>{fmt(projIn)}</div><div className="ss">pending receivables</div></div>
+      <div className="stat"><div className="sl">Balance Today</div><div className="sv" style={{color:todayBal>=0?C.green:C.re}}>{fmt(todayBal)}</div><div className="ss">{bankToday>0?"from bank":"not filled in"}</div></div>
+      <div className="stat"><div className="sl">Registered</div><div className="sv" style={{color:committed>=0?C.green:C.re}}>{fmt(committed)}</div><div className="ss">{fmt(projIn)} in · {fmt(projOut)} out{overdueOut>0?` · ${fmt(overdueOut)} overdue`:""}</div></div>
+      <div className="stat"><div className="sl">Estimated Costs</div><div className="sv" style={{color:C.amber}}>{fmt(-estimatedGap)}</div><div className="ss">{runRate.months>0?`not entered yet · ${runRate.months}-month average`:"no closed month to estimate from"}</div></div>
+      <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div><div className="ss">balance − registered − estimated</div></div>
     </div>
 
     <div className="ccart">
       <div className="ctitle">Daily Balance Curve</div>
-      <div style={{fontSize:11,color:C.text2,marginBottom:12}}>Realized (from Jobber CSV) + Projected (every pending payable & receivable, overdue ones charged today)</div>
+      <div style={{fontSize:11,color:C.text2,marginBottom:12}}>Anchored on today's bank balance · every pending item counts, overdue ones charged today · plus estimated costs not entered yet</div>
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={chartData} margin={{top:5,right:20,bottom:5,left:0}}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/>
@@ -1380,7 +1391,7 @@ function CashFlowTab({data,setData,month,year}) {
 
     <div className="ccart">
       <div className="ctitle">Daily Inflows vs Outflows</div>
-      <div style={{fontSize:11,color:C.text2,marginBottom:12}}>Green = realized inflows · Blue = projected inflows · Red = realized outflows · Orange = projected outflows</div>
+      <div style={{fontSize:11,color:C.text2,marginBottom:12}}>Green = realized inflows · Blue = pending inflows · Red = realized outflows · Orange = pending outflows · Yellow = estimated costs</div>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={chartData} margin={{top:5,right:20,bottom:5,left:0}}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/>
@@ -1390,7 +1401,8 @@ function CashFlowTab({data,setData,month,year}) {
           <Bar dataKey="realizedIn" fill={C.green} name="Inflows (real)" stackId="in"/>
           <Bar dataKey="projIn" fill={C.blue} name="Inflows (proj)" stackId="in" opacity={0.6}/>
           <Bar dataKey="realizedOut" fill={C.red} name="Outflows (real)" stackId="out"/>
-          <Bar dataKey="projOut" fill={C.orange} name="Outflows (proj)" stackId="out" opacity={0.6}/>
+          <Bar dataKey="projOut" fill={C.orange} name="Outflows (pending)" stackId="out" opacity={0.6}/>
+          <Bar dataKey="estOut" fill={C.yellow} name="Outflows (estimated)" stackId="out" opacity={0.5}/>
         </BarChart>
       </ResponsiveContainer>
     </div>
