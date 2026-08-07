@@ -65,7 +65,7 @@ const JOBBER_MAP = {
   "wages - operations support":"sal_ops","rent & utilities":"custos_fixos","software & tech":"softwares",
   "accounting, licenses & insurance":"contabilidade","professional fees & insurance":"contabilidade",
   "admin & general expenses":"desp_gerais","general & admin expenses":"desp_gerais",
-  "financial expenses":"taxas_bank","bank charges":"taxas_bank","genn platform":"cogs_genn",
+  "financial expenses":"taxas_bank","bank charges":"taxas_bank","genn platform":"cogs_genn","genn platform cost":"cogs_genn",
 };
 
 const DRE_LABELS = {
