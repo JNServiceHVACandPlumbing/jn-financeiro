@@ -72,17 +72,17 @@ const DRE_LABELS = {
   rev_operacional:"Receita Operacional",rev_genn:"Receita Recorrente GENN",impostos:"Impostos sobre a venda",
   receita_liquida:"= Receita Líquida",cogs_materials:"Custo das Mercadorias Vendidas",cogs_genn:"Custo Plataforma GENN",
   cogs_subs:"Custo dos Subcontratados",cogs_fuel:"Gasolina",margem:"= Margem de Contribuição",
-  mkt:"Despesas com Marketing",sal_ops:"Salários Suporte Operacional",sal_adm:"Salários Adm",
+  mkt:"Despesas com Marketing",sal_ops:"Suporte Operacional - Geral",sal_ops_plumbing:"Suporte Operacional - Plumbing",comercial_ic:"Comercial - IC",sal_adm:"Salários Adm",
   custos_fixos:"Custos Fixos Administrativos",estoque:"Estoque / Inventário",softwares:"Softwares",contabilidade:"Contabilidade, Licenças, Seguros",
   lucro_op:"= Lucro Operacional",desp_gerais:"Despesas Gerais e Adm",taxas_bank:"Taxas Bank, Juros",lucro_ir:"= Lucro Antes do IR",
 };
 
-const DRE_INPUT_KEYS = ["rev_operacional","rev_genn","impostos","cogs_materials","cogs_genn","cogs_subs","cogs_fuel","mkt","sal_ops","sal_adm","custos_fixos","estoque","softwares","contabilidade","desp_gerais","taxas_bank"];
+const DRE_INPUT_KEYS = ["rev_operacional","rev_genn","impostos","cogs_materials","cogs_genn","cogs_subs","cogs_fuel","mkt","sal_ops","sal_ops_plumbing","comercial_ic","sal_adm","custos_fixos","estoque","softwares","contabilidade","desp_gerais","taxas_bank"];
 
 const DRE_STRUCTURE = [
   {key:"rev_operacional",type:"input"},{key:"rev_genn",type:"input"},{key:"impostos",type:"input"},{key:"receita_liquida",type:"calc"},
   {key:"cogs_materials",type:"input"},{key:"cogs_genn",type:"input"},{key:"cogs_subs",type:"input"},{key:"cogs_fuel",type:"input"},{key:"margem",type:"calc"},
-  {key:"mkt",type:"input"},{key:"sal_ops",type:"input"},{key:"sal_adm",type:"input"},{key:"custos_fixos",type:"input"},{key:"estoque",type:"input"},{key:"softwares",type:"input"},{key:"contabilidade",type:"input"},{key:"lucro_op",type:"calc"},
+  {key:"mkt",type:"input"},{key:"sal_ops",type:"input"},{key:"sal_ops_plumbing",type:"input"},{key:"comercial_ic",type:"input"},{key:"sal_adm",type:"input"},{key:"custos_fixos",type:"input"},{key:"estoque",type:"input"},{key:"softwares",type:"input"},{key:"contabilidade",type:"input"},{key:"lucro_op",type:"calc"},
   {key:"desp_gerais",type:"input"},{key:"taxas_bank",type:"input"},{key:"lucro_ir",type:"calc"},
 ];
 
@@ -221,7 +221,7 @@ function computeDRE(d,monthKey){
   const gennIsInfo=isGennInformationalOnly(monthKey,d);
   const receita_liquida=v("rev_operacional")+(gennIsInfo?0:v("rev_genn"))-v("impostos");
   const margem=receita_liquida-v("cogs_materials")-v("cogs_genn")-v("cogs_subs")-v("cogs_fuel");
-  const lucro_op=margem-v("mkt")-v("sal_ops")-v("sal_adm")-v("custos_fixos")-v("estoque")-v("softwares")-v("contabilidade");
+  const lucro_op=margem-v("mkt")-v("sal_ops")-v("sal_ops_plumbing")-v("comercial_ic")-v("sal_adm")-v("custos_fixos")-v("estoque")-v("softwares")-v("contabilidade");
   const lucro_ir=lucro_op-v("desp_gerais")-v("taxas_bank");
   return {...d,receita_liquida,margem,lucro_op,lucro_ir};
 }
@@ -1488,7 +1488,7 @@ function OperationalDashboard({data,month,year}) {
           {label:"Net Revenue",value:computed.receita_liquida},
           {label:"Total COGS",value:-(fmtNum(displayData.cogs_materials)+fmtNum(displayData.cogs_subs)+fmtNum(displayData.cogs_fuel)+fmtNum(displayData.cogs_genn))},
           {label:"Contribution Margin",value:computed.margem},
-          {label:"Fixed Expenses",value:-(fmtNum(displayData.mkt)+fmtNum(displayData.sal_adm)+fmtNum(displayData.sal_ops)+fmtNum(displayData.custos_fixos)+fmtNum(displayData.estoque)+fmtNum(displayData.softwares)+fmtNum(displayData.contabilidade))},
+          {label:"Fixed Expenses",value:-(fmtNum(displayData.mkt)+fmtNum(displayData.sal_adm)+fmtNum(displayData.sal_ops)+fmtNum(displayData.sal_ops_plumbing)+fmtNum(displayData.comercial_ic)+fmtNum(displayData.custos_fixos)+fmtNum(displayData.estoque)+fmtNum(displayData.softwares)+fmtNum(displayData.contabilidade))},
           {label:"Operating Income",value:computed.lucro_op},
           {label:"Net Income (pre-tax)",value:computed.lucro_ir},
         ].map(({label,value})=><div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--bdr)"}}>
@@ -1615,7 +1615,7 @@ function AnalyticsDashboard({data,month,year}) {
     const mp=c.receita_liquida>0?Math.round(c.margem/c.receita_liquida*100):0;
     const sp=c.receita_liquida>0?Math.round(fmtNum(d.cogs_subs)/c.receita_liquida*100):0;
     const cogs=fmtNum(d.cogs_materials)+fmtNum(d.cogs_subs)+fmtNum(d.cogs_fuel)+fmtNum(d.cogs_genn);
-    const custos=fmtNum(d.mkt)+fmtNum(d.sal_adm)+fmtNum(d.sal_ops)+fmtNum(d.custos_fixos)+fmtNum(d.estoque)+fmtNum(d.softwares)+fmtNum(d.contabilidade);
+    const custos=fmtNum(d.mkt)+fmtNum(d.sal_adm)+fmtNum(d.sal_ops)+fmtNum(d.sal_ops_plumbing)+fmtNum(d.comercial_ic)+fmtNum(d.custos_fixos)+fmtNum(d.estoque)+fmtNum(d.softwares)+fmtNum(d.contabilidade);
     return {label,receita:Math.round(c.receita_liquida),margem:Math.round(c.margem),lucro:Math.round(c.lucro_ir),cogs:Math.round(cogs),mkt:Math.round(fmtNum(d.mkt)),subs:Math.round(fmtNum(d.cogs_subs)),custos:Math.round(custos),margem_pct:mp,subs_pct:sp};
   }),[months,data,dreType]);
   const discrepancias=useMemo(()=>{
