@@ -1274,18 +1274,24 @@ function CashFlowTab({data,setData,month,year}) {
   // Average of the last 3 closed months, charged only for the days still ahead. Job-driven
   // costs (materials, subs, fuel) are left out on purpose: they arrive together with the
   // revenue, and revenue is not estimated here either.
+  // Counted back from the real current month, never from the month on screen: looking at
+  // October must not degrade the average just because September has not been closed yet.
+  // Skips months with no DRE data instead of counting them as zero.
   const payrollAvg=useMemo(()=>{
+    const [ty,tm]=todayStr.split("-").map(Number);
     const samples=[];
-    for(let i=1;i<=3;i++){
-      let m=month-i,y=year;
+    for(let i=1;i<=12&&samples.length<3;i++){
+      let m=(tm-1)-i,y=ty;
       while(m<0){m+=12;y--;}
       const d=getDREForMonth(data,y,m,"real");
       if(d) samples.push(PAYROLL_KEYS.reduce((s,k)=>s+fmtNum(d[k]),0));
     }
     return {total:samples.length?samples.reduce((a,b)=>a+b,0)/samples.length:0,months:samples.length};
-  },[data,month,year]);
+  },[data]);
 
-  const daysLeft=dayKeys.filter(d=>d>anchorDay).length;
+  // Days still ahead: the whole month if it has not started, none if it already closed.
+  // For the current month the anchor day itself is excluded — it may already have been paid.
+  const daysLeft=todayStr<dayKeys[0]?daysInMonth:dayKeys.filter(d=>d>anchorDay).length;
   const estimatedGap=payrollAvg.total*(daysLeft/daysInMonth);
   const futureDays=dayKeys.filter(d=>d>anchorDay).length;
   const gapPerDay=futureDays>0?estimatedGap/futureDays:0;
