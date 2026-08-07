@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { initializeApp } from "firebase/app";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, onSnapshot, collection } from "firebase/firestore";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine, Area, ComposedChart } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, ReferenceLine } from "recharts";
 
 // ─── FIREBASE ─────────────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -1238,8 +1238,6 @@ function DRETab({data,setData,month,year}) {
 function CashFlowTab({data,setData,month,year}) {
   const mk=`${year}-${month}`;
   const cfSettings=data.cashFlowSettings?.[mk]||{};
-  const dreEstimate=data.dreEstimate?.[mk]||{};
-  const [showEstimate,setShowEstimate]=useState(false);
   const [bankInput,setBankInput]=useState(cfSettings.currentBank||"");
 
   const saveBank=v=>{
@@ -1323,20 +1321,11 @@ function CashFlowTab({data,setData,month,year}) {
     return days.map((d,i)=>({...d,balance:Math.round(bal[i]),anchorBalance:Math.round(anchorBal)}));
   },[dayKeys,dailyCSV,pendingRec,pendingPayCash,pendingCon,anchorDay,bankToday,gapPerDay,gapOnAnchor]);
 
-  const totalIn=chartData.reduce((s,d)=>s+d.realizedIn,0);
-  const totalOut=chartData.reduce((s,d)=>s+d.realizedOut,0);
-  const projIn=chartData.reduce((s,d)=>s+d.projIn,0);
-  const projOut=chartData.reduce((s,d)=>s+d.projOut,0);
   const endBalance=chartData[chartData.length-1]?.balance||0;
   const todayBal=chartData.find(d=>d.isAnchor)?.anchorBalance??0;
   const recToReceive=pendingRec.reduce((s,r)=>s+fmtNum(r.remaining),0);
   const payToPay=pendingPayCash.reduce((s,p)=>s+fmtNum(p.amount),0);
   const conToPay=pendingCon.reduce((s,c)=>s+fmtNum(c.amount),0);
-
-  // DRE Estimate computed
-  const estimateComputed=computeDRE(dreEstimate,mk);
-  const setEst=(k,v)=>setData(d=>({...d,dreEstimate:{...(d.dreEstimate||{}),[mk]:{...(d.dreEstimate?.[mk]||{}),[k]:v}}}));
-  const clearEstimate=()=>setData(d=>({...d,dreEstimate:{...(d.dreEstimate||{}),[mk]:{}}}));
 
   return <div>
     <div className="help-box">
@@ -1384,95 +1373,6 @@ function CashFlowTab({data,setData,month,year}) {
       <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div><div className="ss">{payrollInPayables>0?`${fmt(payrollInPayables)} of payroll excluded from payables`:"balance + receivables − payables − subs − payroll"}</div></div>
     </div>
 
-    <div className="ccart">
-      <div className="ctitle">Daily Balance Curve</div>
-      <div style={{fontSize:11,color:C.text2,marginBottom:12}}>Anchored on today's bank balance · every pending item counts, overdue ones charged today · plus estimated costs not entered yet</div>
-      <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart data={chartData} margin={{top:5,right:20,bottom:5,left:0}}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/>
-          <XAxis dataKey="day" tick={{fill:C.text2,fontSize:10}} axisLine={false} tickLine={false} interval={2}/>
-          <YAxis tickFormatter={fmtK} tick={{fill:C.text2,fontSize:11}} axisLine={false} tickLine={false} width={55}/>
-          <Tooltip content={<CT/>}/>
-          <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeWidth={1}/>
-          <Area type="monotone" dataKey="balance" stroke={C.teal} strokeWidth={2} fill="rgba(27,122,138,0.1)" dot={false} name="Balance"/>
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-
-    <div className="ccart">
-      <div className="ctitle">Daily Inflows vs Outflows</div>
-      <div style={{fontSize:11,color:C.text2,marginBottom:12}}>Green = realized inflows · Blue = pending inflows · Red = realized outflows · Orange = pending outflows · Yellow = estimated costs</div>
-      <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={chartData} margin={{top:5,right:20,bottom:5,left:0}}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)"/>
-          <XAxis dataKey="day" tick={{fill:C.text2,fontSize:10}} axisLine={false} tickLine={false} interval={2}/>
-          <YAxis tickFormatter={fmtK} tick={{fill:C.text2,fontSize:11}} axisLine={false} tickLine={false} width={50}/>
-          <Tooltip content={<CT/>}/>
-          <Bar dataKey="realizedIn" fill={C.green} name="Inflows (real)" stackId="in"/>
-          <Bar dataKey="projIn" fill={C.blue} name="Inflows (proj)" stackId="in" opacity={0.6}/>
-          <Bar dataKey="realizedOut" fill={C.red} name="Outflows (real)" stackId="out"/>
-          <Bar dataKey="projOut" fill={C.orange} name="Outflows (pending)" stackId="out" opacity={0.6}/>
-          <Bar dataKey="estOut" fill={C.yellow} name="Outflows (estimated)" stackId="out" opacity={0.5}/>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-
-    <div className="g2" style={{marginBottom:16}}>
-      <div className="card">
-        <div className="ctitle">Realized — Up to Today</div>
-        {[{l:"Total Inflows",v:totalIn},{l:"Total Outflows",v:-totalOut},{l:"Net Balance",v:totalIn-totalOut}].map(({l,v})=>
-          <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--bdr)"}}>
-            <span style={{fontSize:13,color:C.text2}}>{l}</span>
-            <span className={v>=0?"ap":"an"} style={{fontSize:13}}>{fmt(Math.abs(v))}</span>
-          </div>
-        )}
-      </div>
-      <div className="card">
-        <div className="ctitle">Projected — Rest of Month</div>
-        {[{l:"Expected to Receive",v:projIn},{l:"Expected to Pay",v:-projOut},{l:"Net Projected",v:projIn-projOut}].map(({l,v})=>
-          <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--bdr)"}}>
-            <span style={{fontSize:13,color:C.text2}}>{l}</span>
-            <span className={v>=0?"ap":"an"} style={{fontSize:13}}>{fmt(Math.abs(v))}</span>
-          </div>
-        )}
-      </div>
-    </div>
-
-    {/* DRE Estimate */}
-    <div className="card">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <div>
-          <div className="ctitle" style={{marginBottom:2}}>📈 DRE Estimate — Month Forecast</div>
-          <div style={{fontSize:12,color:C.text2}}>Estimate how the month will close. Saved automatically. Clear anytime.</div>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button className="btn bsm bgg" onClick={()=>setShowEstimate(!showEstimate)}>{showEstimate?"Collapse":"Expand"}</button>
-          <button className="btn bsm bdel" onClick={clearEstimate}>Clear</button>
-        </div>
-      </div>
-      {showEstimate&&<div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 140px 140px",borderBottom:"1px solid var(--bdr)",marginBottom:4}}>
-          <div style={{padding:"8px 12px",fontSize:11,color:C.text2,textTransform:"uppercase",letterSpacing:".5px"}}>Line</div>
-          <div style={{padding:"8px 12px",fontSize:11,color:C.text2,textTransform:"uppercase",letterSpacing:".5px",textAlign:"right"}}>Realized</div>
-          <div style={{padding:"8px 12px",fontSize:11,color:"#F5A623",textTransform:"uppercase",letterSpacing:".5px",textAlign:"right"}}>Estimate</div>
-        </div>
-        {DRE_STRUCTURE.map(({key,type})=>{
-          const realized2=computeDRE(data.dreData?.[mk]||HIST_R[mk]||{},mk);
-          const rv=realized2[key];const ev=estimateComputed[key];
-          const isCalc=type==="calc";
-          if(isCalc) return <div key={key} style={{display:"grid",gridTemplateColumns:"1fr 140px 140px",background:"rgba(232,57,42,0.05)",borderTop:"1px solid rgba(232,57,42,0.15)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-            <div className="dre-lbl dre-lbl-c">{DRE_LABELS[key]}</div>
-            <div className={`dre-val dre-val-c ${fmtNum(rv)>=0?"ap":"an"}`}>{fmt(rv)}</div>
-            <div className={`dre-val dre-val-c ${fmtNum(ev)>=0?"ap":"an"}`}>{ev!==undefined?fmt(ev):"—"}</div>
-          </div>;
-          return <div key={key} style={{display:"grid",gridTemplateColumns:"1fr 140px 140px",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-            <div className="dre-lbl">{DRE_LABELS[key]}</div>
-            <div className="dre-val" style={{color:"var(--t2)",fontFamily:"var(--mono)"}}>{fmt(rv)}</div>
-            <div className="dre-inp"><input type="number" value={dreEstimate[key]||""} onChange={e=>setEst(key,e.target.value)} placeholder="0.00" style={{color:"#F5A623",borderColor:"rgba(245,166,35,0.3)"}}/></div>
-          </div>;
-        })}
-      </div>}
-    </div>
     </div>}
   </div>;
 }
