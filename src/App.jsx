@@ -1329,7 +1329,9 @@ function CashFlowTab({data,setData,month,year}) {
   const projOut=chartData.reduce((s,d)=>s+d.projOut,0);
   const endBalance=chartData[chartData.length-1]?.balance||0;
   const todayBal=chartData.find(d=>d.isAnchor)?.anchorBalance??0;
-  const committed=projIn-projOut;
+  const recToReceive=pendingRec.reduce((s,r)=>s+fmtNum(r.remaining),0);
+  const payToPay=pendingPayCash.reduce((s,p)=>s+fmtNum(p.amount),0);
+  const conToPay=pendingCon.reduce((s,c)=>s+fmtNum(c.amount),0);
 
   // DRE Estimate computed
   const estimateComputed=computeDRE(dreEstimate,mk);
@@ -1373,11 +1375,13 @@ function CashFlowTab({data,setData,month,year}) {
       </div>
     </div>
 
-    <div className="g4" style={{marginBottom:16}}>
-      <div className="stat"><div className="sl">Balance Today</div><div className="sv" style={{color:todayBal>=0?C.green:C.re}}>{fmt(todayBal)}</div><div className="ss">{bankToday>0?"from bank":"not filled in"}</div></div>
-      <div className="stat"><div className="sl">Registered</div><div className="sv" style={{color:committed>=0?C.green:C.re}}>{fmt(committed)}</div><div className="ss">{fmt(projIn)} in · {fmt(projOut)} out{overdueOut>0?` · ${fmt(overdueOut)} overdue`:""}</div></div>
-      <div className="stat"><div className="sl">Estimated Payroll</div><div className="sv" style={{color:C.amber}}>{fmt(-estimatedGap)}</div><div className="ss">{payrollAvg.months>0?`${payrollAvg.months}-month avg · ${daysLeft}/${daysInMonth} days left${payrollInPayables>0?` · ${fmt(payrollInPayables)} excluded from payables`:""}`:"no closed month to estimate from"}</div></div>
-      <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div><div className="ss">balance − registered − estimated</div></div>
+    <div className="g3" style={{marginBottom:16}}>
+      <div className="stat"><div className="sl">Balance Today</div><div className="sv" style={{color:todayBal>=0?C.green:C.re}}>{fmt(todayBal)}</div><div className="ss">{bankToday>0?"from bank":"⚠️ not filled in"}</div></div>
+      <div className="stat"><div className="sl">Receivables to Receive</div><div className="sv" style={{color:C.green}}>{fmt(recToReceive)}</div><div className="ss">{pendingRec.length} pending this month</div></div>
+      <div className="stat"><div className="sl">Payables to Pay</div><div className="sv" style={{color:C.re}}>{fmt(-payToPay||0)}</div><div className="ss">{overdueOut>0?`${fmt(overdueOut)} already overdue`:`${pendingPayCash.length} pending`}</div></div>
+      <div className="stat"><div className="sl">Subcontractors to Pay</div><div className="sv" style={{color:C.re}}>{fmt(-conToPay||0)}</div><div className="ss">{pendingCon.length} pending this month</div></div>
+      <div className="stat"><div className="sl">Estimated Payroll</div><div className="sv" style={{color:C.amber}}>{fmt(-estimatedGap||0)}</div><div className="ss">{payrollAvg.months>0?`${daysLeft} of ${daysInMonth} days left · ${payrollAvg.months}-month avg`:"no closed month to estimate from"}</div></div>
+      <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div><div className="ss">{payrollInPayables>0?`${fmt(payrollInPayables)} of payroll excluded from payables`:"balance + receivables − payables − subs − payroll"}</div></div>
     </div>
 
     <div className="ccart">
