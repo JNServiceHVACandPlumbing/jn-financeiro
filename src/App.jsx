@@ -1289,9 +1289,12 @@ function CashFlowTab({data,setData,month,year}) {
     return {total:samples.length?samples.reduce((a,b)=>a+b,0)/samples.length:0,months:samples.length};
   },[data]);
 
-  // Days still ahead: the whole month if it has not started, none if it already closed.
-  // For the current month the anchor day itself is excluded — it may already have been paid.
-  const daysLeft=todayStr<dayKeys[0]?daysInMonth:dayKeys.filter(d=>d>anchorDay).length;
+  // Prorated from the day the balance was checked, not from today: the balance is only true
+  // as of that date, so everything after it is still to come. Falls back to today when no
+  // check date is set, and to the whole month when neither lands inside it.
+  const checkDay=cfSettings.lastBankCheck&&cfSettings.lastBankCheck>=dayKeys[0]&&cfSettings.lastBankCheck<=dayKeys[dayKeys.length-1]?cfSettings.lastBankCheck:null;
+  const refDay=checkDay||anchorDay;
+  const daysLeft=(!checkDay&&todayStr<dayKeys[0])?daysInMonth:dayKeys.filter(d=>d>refDay).length;
   const estimatedGap=payrollAvg.total*(daysLeft/daysInMonth);
   const futureDays=dayKeys.filter(d=>d>anchorDay).length;
   const gapPerDay=futureDays>0?estimatedGap/futureDays:0;
@@ -1375,7 +1378,7 @@ function CashFlowTab({data,setData,month,year}) {
       <div className="stat"><div className="sl">Receivables to Receive</div><div className="sv" style={{color:C.green}}>{fmt(recToReceive)}</div><div className="ss">{pendingRec.length} pending this month</div></div>
       <div className="stat"><div className="sl">Payables to Pay</div><div className="sv" style={{color:C.re}}>{fmt(-payToPay||0)}</div><div className="ss">{overdueOut>0?`${fmt(overdueOut)} already overdue`:`${pendingPayCash.length} pending`}</div></div>
       <div className="stat"><div className="sl">Subcontractors to Pay</div><div className="sv" style={{color:C.re}}>{fmt(-conToPay||0)}</div><div className="ss">{pendingCon.length} pending this month</div></div>
-      <div className="stat"><div className="sl">Estimated Payroll</div><div className="sv" style={{color:C.amber}}>{fmt(-estimatedGap||0)}</div><div className="ss">{payrollAvg.months>0?`${daysLeft} of ${daysInMonth} days left · ${payrollAvg.months}-month avg`:"no closed month to estimate from"}</div></div>
+      <div className="stat"><div className="sl">Estimated Payroll</div><div className="sv" style={{color:C.amber}}>{fmt(-estimatedGap||0)}</div><div className="ss">{payrollAvg.months>0?`${daysLeft} of ${daysInMonth} days left${checkDay?` from ${checkDay.slice(8)}/${checkDay.slice(5,7)}`:""} · ${payrollAvg.months}-month avg`:"no closed month to estimate from"}</div></div>
       <div className="stat"><div className="sl">Month-End Projection</div><div className="sv" style={{color:endBalance>=0?C.green:C.re}}>{fmt(endBalance)}</div><div className="ss">{payrollInPayables>0?`${fmt(payrollInPayables)} of payroll excluded from payables`:"balance + receivables − payables − subs − payroll"}</div></div>
     </div>
 
