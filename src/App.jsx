@@ -87,6 +87,22 @@ const DRE_LABELS = {
 
 const DRE_INPUT_KEYS = ["rev_operacional","rev_genn","impostos","cogs_materials","cogs_genn","cogs_subs","cogs_fuel","mkt","sal_ops","sal_ops_plumbing","comercial_ic","sal_adm","custos_fixos","estoque","softwares","contabilidade","desp_gerais","taxas_bank"];
 
+// Supply houses paid weekly on the company credit card. Account number is fixed per store,
+// so it is looked up from here rather than typed by hand each time.
+const SUPPLY_STORES = [
+  {name:"Bosch - Winsupply Boston",acct:"001587"},
+  {name:"FW WEBB",acct:"246970"},
+  {name:"Trane - FERGUSON",acct:"398953"},
+  {name:"Bosch - Winsupply Hingham",acct:"003477"},
+  {name:"Plumber's Supply",acct:"16329"},
+  {name:"Portland Group",acct:"114251"},
+  {name:"Daikin Comfort",acct:"276838"},
+  {name:"Supply New England",acct:"414510"},
+  {name:"API Delta T",acct:"11437"},
+  {name:"Homan's Associates",acct:"512454"},
+  {name:"Bell Simons",acct:"103387"},
+];
+
 // Salary-type costs that are paid as they go and never get entered as payables. The Cash Flow
 // tab estimates these from history instead of reading them from Payables.
 const PAYROLL_KEYS = ["sal_adm","sal_ops","sal_ops_plumbing","comercial_ic"];
@@ -836,6 +852,9 @@ function ReceivablesTab({data,setData,month,year}) {
 // ─── RECURRENCE (shared by Contractor/Payable edit modals) ────────────────────
 function fmtLocalDate(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
 function nextWeekday(date,weekday){const d=new Date(date);const diff=((weekday-d.getDay())+7)%7||7;d.setDate(d.getDate()+diff);return d;}
+// First Friday on/after the 1st of the given month — used as the default due date for a new
+// supply charge, since stores are paid every Friday.
+function firstFridayOfMonth(year,month){const d=new Date(year,month,1);d.setDate(d.getDate()+((5-d.getDay()+7)%7));return fmtLocalDate(d);}
 function generateRecurDates(startDateStr,type,count,weekday){
   const dates=[];
   let cur=parseLocalDate(startDateStr);
@@ -1094,6 +1113,157 @@ function PayablesTab({data,setData,month,year}) {
     </>)}
     {showAdd&&<ModalEditPayable item={null} onSave={item=>{add(item);setShowAdd(false);}} onAdd={add} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
     {editItem&&<ModalEditPayable item={editItem} onSave={item=>{update(item);setEditItem(null);}} onAdd={add} onClose={()=>setEditItem(null)} month={month} year={year}/>}
+  </div>;
+}
+
+// ─── MODAL EDIT SUPPLY ─────────────────────────────────────────────────────────
+function ModalEditSupply({item,onSave,onClose,month,year}) {
+  const isNew=!item;
+  const [f,setF]=useState(()=>isNew?{
+    jobName:"",jobNumber:"",store:SUPPLY_STORES[0].name,account:SUPPLY_STORES[0].acct,
+    amount:0,dueDate:(month!=null&&year!=null)?firstFridayOfMonth(year,month):"",
+    status:"pending",notes:"",
+  }:{...item});
+  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  const setStore=name=>{
+    const match=SUPPLY_STORES.find(st=>st.name===name);
+    setF(p=>({...p,store:name,account:match?match.acct:p.account}));
+  };
+  return <div className="overlay" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}>
+    <div className="mtitle">{isNew?"New Supply Charge":`Edit — ${item.jobName}`}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div className="g2">
+        <div className="fg"><div className="fl">Job Name</div><input value={f.jobName||""} onChange={e=>s("jobName",e.target.value)} placeholder="e.g. Smith Residence"/></div>
+        <div className="fg"><div className="fl">Job #</div><input value={f.jobNumber||""} onChange={e=>s("jobNumber",e.target.value)} placeholder="e.g. 2431"/></div>
+      </div>
+      <div className="g2">
+        <div className="fg"><div className="fl">Store</div>
+          <select value={f.store||""} onChange={e=>setStore(e.target.value)}>
+            {SUPPLY_STORES.map(st=><option key={st.name} value={st.name}>{st.name}</option>)}
+          </select>
+        </div>
+        <div className="fg"><div className="fl">Account</div><input value={f.account||""} onChange={e=>s("account",e.target.value)}/></div>
+      </div>
+      <div className="g2">
+        <div className="fg"><div className="fl">Amount ($)</div><input type="number" value={f.amount||""} onChange={e=>s("amount",Number(e.target.value)||0)} placeholder="0.00"/></div>
+        <div className="fg"><div className="fl">Due Date</div><input type="date" value={f.dueDate||""} onChange={e=>s("dueDate",e.target.value)}/></div>
+      </div>
+      <div className="fg"><div className="fl">Status</div>
+        <select value={f.status||"pending"} onChange={e=>s("status",e.target.value)}><option value="pending">Pending</option><option value="paid">Paid</option></select>
+      </div>
+      <div className="fg"><div className="fl">Notes</div><textarea rows={2} value={f.notes||""} onChange={e=>s("notes",e.target.value)}/></div>
+    </div>
+    <div className="mact">
+      <button className="btn bgg" onClick={onClose}>Cancel</button>
+      <button className="btn bp" disabled={!f.jobName||!f.jobName.trim()} onClick={()=>{
+        const base=isNew?{...f,id:Date.now().toString(),createdAt:new Date().toISOString()}:{...f};
+        onSave(base);
+        onClose();
+      }}>Save</button>
+    </div>
+  </div></div>;
+}
+
+// ─── SUPPLIES - CC TAB ──────────────────────────────────────────────────────────
+function SuppliesTab({data,setData,month,year}) {
+  const [showAdd,setShowAdd]=useState(false);
+  const [editItem,setEditItem]=useState(null);
+  const items=useMemo(()=>(data.supplies||[]).filter(r=>isInMonth(r.dueDate||r.createdAt,month,year)),[data.supplies,month,year]);
+  const pending=items.filter(i=>i.status!=="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
+  const paid=items.filter(i=>i.status==="paid").reduce((s,i)=>s+fmtNum(i.amount),0);
+  const overdue=items.filter(i=>i.status!=="paid"&&agingDays(i.dueDate)>0).length;
+  const markPaid=id=>{
+    const paidAt=new Date().toISOString();
+    setData(d=>({...d,supplies:d.supplies.map(r=>r.id===id?{...r,status:"paid",paidAt}:r)}));
+  };
+  const del=id=>{if(!window.confirm("Are you sure you want to delete this supply charge?")) return;fbSet("supplies",id,{id,_deleted:true});setData(d=>({...d,supplies:d.supplies.filter(r=>r.id!==id)}));};
+  const add=item=>setData(d=>({...d,supplies:[...(d.supplies||[]),item]}));
+  const update=item=>setData(d=>({...d,supplies:d.supplies.map(r=>r.id===item.id?{...r,...item}:r)}));
+
+  // Grouped by due date (the weekly Friday payment run), then by store within each date —
+  // so a whole week's run for a given store reads as one block instead of a flat list.
+  const groups=useMemo(()=>{
+    const byDate={};
+    items.forEach(it=>{(byDate[it.dueDate||"—"]=byDate[it.dueDate||"—"]||[]).push(it);});
+    return Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date,rows])=>{
+      const byStore={};
+      rows.forEach(r=>{(byStore[r.store||"—"]=byStore[r.store||"—"]||[]).push(r);});
+      const stores=Object.entries(byStore).sort(([a],[b])=>a.localeCompare(b)).map(([store,rows2])=>({
+        store,acct:rows2[0]?.account||"",
+        rows:[...rows2].sort((a,b)=>a.status==="paid"?1:-1),
+        total:rows2.reduce((s,r)=>s+fmtNum(r.amount),0),
+      }));
+      const isFriday=date!=="—"&&parseLocalDate(date).getDay()===5;
+      return {date,isFriday,stores,total:rows.reduce((s,r)=>s+fmtNum(r.amount),0)};
+    });
+  },[items]);
+
+  return <div>
+    <div className="help-box">
+      <strong>🧰 Supplies - CC — How to use:</strong><br/>
+      Log every supply-house charge made on the company credit card: job, store, and amount.<br/>
+      — Stores are paid once a week — set the <strong>Due Date to that Friday</strong> and everything for the same week and store groups together below.<br/>
+      — The account number fills in automatically from the store you pick, but can be overridden.<br/>
+      — When the card payment goes through, click <strong>✓ Paid</strong>.
+    </div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+      <div className="ptitle">Supplies - CC</div>
+      <button className="btn bp" onClick={()=>{setEditItem(null);setShowAdd(true);}}>+ New</button>
+    </div>
+    <div className="psub">{MONTHS_EN[month]} {year}</div>
+    <div className="g4">
+      <div className="stat"><div className="sl">To Pay</div><div className="sv" style={{color:C.red}}>{fmt(pending)}</div></div>
+      <div className="stat"><div className="sl">Paid</div><div className="sv" style={{color:C.green}}>{fmt(paid)}</div></div>
+      <div className="stat"><div className="sl">Month Total</div><div className="sv" style={{color:C.blue}}>{fmt(pending+paid)}</div></div>
+      <div className="stat"><div className="sl">Overdue</div><div className="sv" style={{color:overdue>0?C.red:C.text2}}>{overdue}</div><div className="ss">unpaid</div></div>
+    </div>
+    {items.length===0?<div className="card empty"><div className="ei">🧰</div>No supply charges this month</div>:(<>
+      <div className="desktop-table">
+        {groups.map(g=><div key={g.date} className="card" style={{padding:0,overflow:"hidden"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",background:"var(--bg2)",borderBottom:"1px solid var(--bdr)"}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>
+              {g.date==="—"?"No due date":parseLocalDate(g.date).toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
+              {g.isFriday&&<span className="tag" style={{marginLeft:8}}>Weekly payment</span>}
+            </div>
+            <div style={{fontFamily:"var(--mono)",fontWeight:700,fontSize:13}}>{fmt(g.total)}</div>
+          </div>
+          {g.stores.map(st=><div key={st.store}>
+            <div style={{display:"flex",justifyContent:"space-between",padding:"8px 16px",fontSize:12,color:"var(--t2)",background:"rgba(255,255,255,0.015)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+              <span><strong style={{color:"var(--t1)"}}>{st.store}</strong>{st.acct&&<span className="tag" style={{marginLeft:6}}>Acct {st.acct}</span>}</span>
+              <span style={{fontFamily:"var(--mono)"}}>{fmt(st.total)}</span>
+            </div>
+            <table>
+              <thead><tr><th>Job Name</th><th>Job #</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+              <tbody>{st.rows.map(r=><tr key={r.id} style={{opacity:r.status==="paid"?0.6:1}}>
+                <td style={{fontWeight:500}}>{r.jobName}</td>
+                <td style={{color:C.text2}}>{r.jobNumber||"—"}</td>
+                <td><span className="am">{fmt(r.amount)}</span></td>
+                <td><span className={`badge ${r.status==="paid"?"bg":"br"}`}>{r.status==="paid"?"Paid":"Pending"}</span></td>
+                <td><div className="acts">{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(r)} style={{fontSize:11}}>✎</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕</button></div></td>
+              </tr>)}</tbody>
+            </table>
+          </div>)}
+        </div>)}
+      </div>
+      <div className="mobile-cards">
+        {[...items].sort((a,b)=>(a.dueDate||"").localeCompare(b.dueDate||"")||(a.store||"").localeCompare(b.store||"")).map(r=>{const ag=r.status==="paid"?{label:"Paid",color:C.green}:agingLabel(agingDays(r.dueDate));return <MobileItemCard key={r.id}
+          title={r.jobName}
+          subtitle={r.jobNumber?`Job #${r.jobNumber}`:""}
+          statusLabel={r.status==="paid"?"Paid":"Pending"}
+          statusClass={r.status==="paid"?"bg":"br"}
+          fields={[
+            {label:"Store",value:r.store||"—"},
+            {label:"Account",value:r.account||"—"},
+            {label:"Amount",value:fmt(r.amount),cls:"am"},
+            {label:"Due Date",value:r.dueDate||"—"},
+            {label:"Aging",value:r.status==="paid"?"—":r.dueDate?ag.label:"—",style:{color:ag.color,fontFamily:"var(--mono)",fontSize:12}},
+          ]}
+          actions={<>{r.status!=="paid"&&<button className="btn bsm bok" onClick={()=>markPaid(r.id)}>✓ Paid</button>}<button className="btn bsm bgg" onClick={()=>setEditItem(r)}>✎ Edit</button><button className="btn bsm bdel" onClick={()=>del(r.id)}>✕ Delete</button></>}
+        />;})}
+      </div>
+    </>)}
+    {showAdd&&<ModalEditSupply item={null} onSave={item=>{add(item);setShowAdd(false);}} onClose={()=>setShowAdd(false)} month={month} year={year}/>}
+    {editItem&&<ModalEditSupply item={editItem} onSave={item=>{update(item);setEditItem(null);}} onClose={()=>setEditItem(null)} month={month} year={year}/>}
   </div>;
 }
 
@@ -1699,7 +1869,7 @@ function AnalyticsDashboard({data,month,year}) {
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
-const EMPTY={receivables:[],contractors:[],payables:[],dreData:{},dreEcoExtra:{},dreAdj:{},dreEstimate:{},cashFlowDaily:{},cashFlowSettings:{},monthNotes:{},monthClose:{},monthStatus:{}};
+const EMPTY={receivables:[],contractors:[],payables:[],supplies:[],dreData:{},dreEcoExtra:{},dreAdj:{},dreEstimate:{},cashFlowDaily:{},cashFlowSettings:{},monthNotes:{},monthClose:{},monthStatus:{}};
 
 export default function App() {
   const [data,setDataRaw]=useState(EMPTY);
@@ -1718,7 +1888,7 @@ export default function App() {
   },[]);
 
   useEffect(()=>{
-    let loaded=0;const check=()=>{loaded++;if(loaded>=4) setLoading(false);};
+    let loaded=0;const check=()=>{loaded++;if(loaded>=5) setLoading(false);};
     const onErr=(label)=>(e)=>{console.error(e);setLoadError(`${label}: ${e.message||e.code||e}`);check();};
     const unsubs=[];
     unsubs.push(onSnapshot(collection(db,"receivables"),snap=>{
@@ -1738,6 +1908,7 @@ export default function App() {
     },onErr("Receivables")));
     unsubs.push(onSnapshot(collection(db,"contractors"),snap=>{setDataRaw(p=>({...p,contractors:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},onErr("Subcontractors")));
     unsubs.push(onSnapshot(collection(db,"payables"),snap=>{setDataRaw(p=>({...p,payables:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},onErr("Payables")));
+    unsubs.push(onSnapshot(collection(db,"supplies"),snap=>{setDataRaw(p=>({...p,supplies:snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>!d._deleted)}));check();},onErr("Supplies")));
     unsubs.push(onSnapshot(collection(db,"dre"),snap=>{
       const dreData={},dreEcoExtra={},dreAdj={},dreEstimate={},cashFlowDaily={},cashFlowSettings={};
       snap.docs.forEach(d=>{
@@ -1773,6 +1944,7 @@ export default function App() {
       if(JSON.stringify(next.receivables)!==JSON.stringify(prev.receivables)) saveArr("receivables",next.receivables,prev.receivables);
       if(JSON.stringify(next.contractors)!==JSON.stringify(prev.contractors)) saveArr("contractors",next.contractors,prev.contractors);
       if(JSON.stringify(next.payables)!==JSON.stringify(prev.payables)) saveArr("payables",next.payables,prev.payables);
+      if(JSON.stringify(next.supplies)!==JSON.stringify(prev.supplies)) saveArr("supplies",next.supplies,prev.supplies);
       const saveDRE=(prefix,obj,prevObj)=>Object.keys(obj||{}).forEach(mk=>{if(JSON.stringify(obj[mk])!==JSON.stringify((prevObj||{})[mk])) fbSetDoc(`dre/${prefix}_${mk}`,{data:obj[mk]});});
       if(JSON.stringify(next.dreData)!==JSON.stringify(prev.dreData)) saveDRE("real",next.dreData,prev.dreData);
       if(JSON.stringify(next.monthNotes)!==JSON.stringify(prev.monthNotes)) Object.keys(next.monthNotes||{}).forEach(mk=>{if(next.monthNotes[mk]!==(prev.monthNotes||{})[mk]) fbSetDoc(`dre/notes_${mk}`,{note:next.monthNotes[mk]});});
@@ -1789,7 +1961,7 @@ export default function App() {
 
   if(loading) return <><style>{css}</style><div className="loading"><div style={{width:32,height:32,border:"3px solid rgba(232,57,42,0.3)",borderTop:"3px solid #E8392A",borderRadius:"50%",animation:"spin 1s linear infinite"}}/><span>Loading data...</span><style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style></div></>;
 
-  const opTabs=[{id:"dashboard",label:"Dashboard"},{id:"receivables",label:"Receivables"},{id:"contractors",label:"Subcontractors"},{id:"payables",label:"Payables"},{id:"dre",label:"DRE"},{id:"cashflow",label:"Cash Flow"},{id:"monthclose",label:"Month Close"}];
+  const opTabs=[{id:"dashboard",label:"Dashboard"},{id:"receivables",label:"Receivables"},{id:"contractors",label:"Subcontractors"},{id:"payables",label:"Payables"},{id:"supplies",label:"Supplies - CC"},{id:"dre",label:"DRE"},{id:"cashflow",label:"Cash Flow"},{id:"monthclose",label:"Month Close"}];
   const anTabs=[{id:"analytics",label:"Analytics"}];
   const tabs=section==="operacional"?opTabs:anTabs;
 
@@ -1820,6 +1992,7 @@ export default function App() {
         {tab==="receivables"&&<ReceivablesTab data={data} setData={setData} month={month} year={year}/>}
         {tab==="contractors"&&<ContractorsTab data={data} setData={setData} month={month} year={year}/>}
         {tab==="payables"&&<PayablesTab data={data} setData={setData} month={month} year={year}/>}
+        {tab==="supplies"&&<SuppliesTab data={data} setData={setData} month={month} year={year}/>}
         {tab==="dre"&&<DRETab data={data} setData={setData} month={month} year={year}/>}
         {tab==="cashflow"&&<CashFlowTab data={data} setData={setData} month={month} year={year}/>}
         {tab==="monthclose"&&<MonthCloseTab data={data} setData={setData} month={month} year={year}/>}
